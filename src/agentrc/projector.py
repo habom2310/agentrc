@@ -248,11 +248,24 @@ def project_subagents() -> tuple[bool, list[str]]:
             f"description: {desc}",
             f"model: {agy_model}",
             f"effort: {effort}",
+            "subagent: true",
         ]
         if mode == "read-write" or meta.get("enable_write_tools") == "true":
-            agy_fm.append("enable_write_tools: true")
-            agy_fm.append("enableWriteTools: true")
-            agy_fm.append("enable_mcp_tools: true")
+            agy_fm.extend([
+                "tools:",
+                "  - read",
+                "  - edit",
+                "  - terminal",
+                "enable_write_tools: true",
+                "enableWriteTools: true",
+                "enable_mcp_tools: true",
+            ])
+        else:
+            agy_fm.extend([
+                "tools:",
+                "  - read",
+                "  - terminal",
+            ])
         agy_fm.append("---")
         agy_content = "\n".join(agy_fm) + body
         (gemini_agents / f"{name}.md").write_text(agy_content, encoding="utf-8")

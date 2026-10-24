@@ -10,7 +10,14 @@ from pathlib import Path
 from agentrc.detector import detect_platforms, set_custom_home
 from agentrc.scaffold import init_hub
 from agentrc.linker import link_skills_for_claude, link_skills_for_gemini, link_skills_for_codex, project_codex_skill_manifests
-from agentrc.projector import project_gemini_rules, project_claude_rules, project_codex_rules, project_subagents
+from agentrc.projector import (
+    project_gemini_rules,
+    project_claude_rules,
+    project_codex_rules,
+    project_cursor_rules,
+    project_windsurf_rules,
+    project_subagents,
+)
 from agentrc.doctor import run_doctor
 from agentrc.token_budget import audit_budget
 from agentrc.hook import run_session_start_hook
@@ -191,7 +198,6 @@ def main():
         ok_x, msg_x = project_codex_rules()
         print(f"Codex AGENTS.md:      {'[OK]' if ok_x else '[FAIL]'} {msg_x}")
 
-        from agentrc.projector import project_cursor_rules, project_windsurf_rules
         ok_cur, msg_cur = project_cursor_rules()
         print(f"Cursor rules:         {'[OK]' if ok_cur else '[FAIL]'} {msg_cur}")
 
@@ -263,7 +269,6 @@ def main():
 
     elif args.command == "promote":
         from agentrc.promoter import detect_rule_drift, promote_chunk
-        from agentrc.projector import project_gemini_rules, project_claude_rules, project_codex_rules
         import shutil
         import datetime
 
@@ -311,7 +316,6 @@ def main():
             project_gemini_rules()
             project_claude_rules()
             project_codex_rules()
-            from agentrc.projector import project_cursor_rules, project_windsurf_rules
             project_cursor_rules()
             project_windsurf_rules()
             print("[OK] Reprojected rules across all platforms.")
