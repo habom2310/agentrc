@@ -73,7 +73,10 @@ def link_skills_for_claude() -> tuple[bool, str]:
         old_backup = claude_skills.parent / "skills.old"
         if old_backup.exists():
             shutil.rmtree(old_backup, ignore_errors=True)
-        claude_skills.rename(old_backup)
+        try:
+            claude_skills.rename(old_backup)
+        except Exception:
+            shutil.move(str(claude_skills), str(old_backup))
 
     return create_junction(claude_skills, hub_skills)
 
@@ -143,7 +146,10 @@ def link_skills_for_codex() -> tuple[bool, str]:
         old_backup = codex_skills.parent / "skills.old"
         if old_backup.exists():
             shutil.rmtree(old_backup, ignore_errors=True)
-        codex_skills.rename(old_backup)
+        try:
+            codex_skills.rename(old_backup)
+        except Exception:
+            shutil.move(str(codex_skills), str(old_backup))
 
     return create_junction(codex_skills, hub_skills)
 
