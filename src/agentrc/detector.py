@@ -96,7 +96,35 @@ def detect_platforms() -> dict:
         "settings_exists": claude_settings.is_file(),
     }
 
-    # 3. Cursor
+    # 3. OpenAI Codex & ChatGPT
+    codex_dir = home / ".codex"
+    codex_rules = codex_dir / "AGENTS.md"
+    codex_skills = codex_dir / "skills"
+    codex_config = codex_dir / "config.toml"
+    codex_bin = shutil.which("codex")
+
+    skills_in_codex_linked = False
+    if codex_skills.is_dir():
+        try:
+            skills_in_codex_linked = codex_skills.is_symlink() or (codex_skills.resolve() != codex_skills)
+        except Exception:
+            pass
+
+    report["platforms"]["codex"] = {
+        "name": "OpenAI Codex CLI & ChatGPT",
+        "detected": codex_dir.is_dir() or (codex_bin is not None),
+        "path": str(codex_dir),
+        "bin_path": codex_bin or "",
+        "rules_file": str(codex_rules),
+        "rules_exists": codex_rules.is_file(),
+        "skills_dir": str(codex_skills),
+        "skills_exists": codex_skills.is_dir(),
+        "skills_linked": skills_in_codex_linked,
+        "config_file": str(codex_config),
+        "config_exists": codex_config.is_file(),
+    }
+
+    # 4. Cursor
     cursor_dir = home / ".cursor"
     report["platforms"]["cursor"] = {
         "name": "Cursor",
@@ -104,7 +132,7 @@ def detect_platforms() -> dict:
         "path": str(cursor_dir),
     }
 
-    # 4. Copilot CLI
+    # 5. Copilot CLI
     copilot_path = shutil.which("copilot")
     report["platforms"]["copilot"] = {
         "name": "GitHub Copilot CLI",

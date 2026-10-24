@@ -9,8 +9,8 @@ from pathlib import Path
 
 from agentrc.detector import detect_platforms
 from agentrc.scaffold import init_hub
-from agentrc.linker import link_skills_for_claude, link_skills_for_gemini
-from agentrc.projector import project_gemini_rules, project_claude_rules, project_subagents
+from agentrc.linker import link_skills_for_claude, link_skills_for_gemini, link_skills_for_codex
+from agentrc.projector import project_gemini_rules, project_claude_rules, project_codex_rules, project_subagents
 from agentrc.doctor import run_doctor
 from agentrc.token_budget import audit_budget
 from agentrc.hook import run_session_start_hook
@@ -68,6 +68,8 @@ def main():
                 print(f"    Rules: {'OK' if p['rules_exists'] else 'Missing'} | Skills Linked: {p['skills_linked']}")
             elif key == "claude" and p["detected"]:
                 print(f"    Rules: {'OK' if p['rules_exists'] else 'Missing'} | Junction: {p['skills_is_junction']}")
+            elif key == "codex" and p["detected"]:
+                print(f"    Rules: {'OK' if p['rules_exists'] else 'Missing'} | Skills Linked: {p['skills_linked']}")
 
     elif args.command == "init":
         templates_path = Path(args.templates) if args.templates else None
@@ -93,6 +95,9 @@ def main():
         ok_gemini, msg_gemini = link_skills_for_gemini()
         print(f"Antigravity: {'[OK]' if ok_gemini else '[WARN]'} {msg_gemini}")
 
+        ok_codex, msg_codex = link_skills_for_codex()
+        print(f"Codex / ChatGPT: {'[OK]' if ok_codex else '[WARN]'} {msg_codex}")
+
     elif args.command == "project":
         print("=== Projecting Rules and Subagents ===")
         ok_g, msg_g = project_gemini_rules()
@@ -100,6 +105,9 @@ def main():
 
         ok_c, msg_c = project_claude_rules()
         print(f"Claude CLAUDE.md:     {'[OK]' if ok_c else '[FAIL]'} {msg_c}")
+
+        ok_x, msg_x = project_codex_rules()
+        print(f"Codex AGENTS.md:      {'[OK]' if ok_x else '[FAIL]'} {msg_x}")
 
         ok_a, msgs_a = project_subagents()
         print(f"Subagents:            {'[OK]' if ok_a else '[FAIL]'}")

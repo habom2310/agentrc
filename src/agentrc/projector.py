@@ -81,6 +81,37 @@ def project_claude_rules(use_imports: bool = True) -> tuple[bool, str]:
     return True, f"Projected CLAUDE.md ({len(content)} chars)"
 
 
+def project_codex_rules() -> tuple[bool, str]:
+    home = get_home_dir()
+    hub = get_hub_dir()
+    rules_dir = hub / "rules"
+    target = home / ".codex" / "AGENTS.md"
+
+    if not rules_dir.is_dir():
+        return False, f"Rules directory not found: {rules_dir}"
+
+    parts = [HEADER_GUARD]
+
+    for f in ["common.md", "code-tools.md", "handoffs.md", "overrides/codex.md"]:
+        p = rules_dir / f
+        if p.is_file():
+            parts.append(p.read_text(encoding="utf-8").strip())
+
+    content = "\n\n".join(parts) + "\n"
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content, encoding="utf-8")
+
+    # Also save an export for ChatGPT Web/Desktop
+    export_dir = hub / "export"
+    export_dir.mkdir(parents=True, exist_ok=True)
+    chatgpt_export = export_dir / "chatgpt_custom_instructions.md"
+    chatgpt_export.write_text(content, encoding="utf-8")
+
+    return True, f"Projected AGENTS.md and ChatGPT export ({len(content)} chars)"
+
+
+
 def parse_frontmatter(content: str) -> tuple[dict, str]:
     if not content.startswith("---"):
         return {}, content

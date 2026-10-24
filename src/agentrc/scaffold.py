@@ -28,6 +28,8 @@ def backup_existing_configs(backup_dir: Path) -> list[str]:
         home / ".gemini" / "config" / "hooks.json",
         home / ".claude" / "CLAUDE.md",
         home / ".claude" / "settings.json",
+        home / ".codex" / "AGENTS.md",
+        home / ".codex" / "config.toml",
     ]
 
     for t in targets:

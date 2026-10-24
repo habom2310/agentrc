@@ -113,3 +113,37 @@ def link_skills_for_gemini() -> tuple[bool, str]:
 
     skills_json.write_text(json.dumps(current_data, indent=2), encoding="utf-8")
     return True, f"Updated {skills_json} with path {resolved_path_str}"
+
+
+def link_skills_for_codex() -> tuple[bool, str]:
+    """
+    Links ~/.codex/skills to ~/.agentrc/skills using an NTFS directory junction,
+    preserving existing Codex-native skills by copying them to hub first.
+    """
+    home = get_home_dir()
+    hub = get_hub_dir()
+    codex_skills = home / ".codex" / "skills"
+    hub_skills = hub / "skills"
+
+    if not (home / ".codex").is_dir():
+        return False, "~/.codex directory does not exist"
+
+    hub_skills.mkdir(parents=True, exist_ok=True)
+
+    if codex_skills.is_dir() and not codex_skills.is_symlink() and codex_skills.resolve() != hub_skills.resolve():
+        # Migrate existing unique skills to hub
+        for item in codex_skills.iterdir():
+            target_item = hub_skills / item.name
+            if not target_item.exists() and item.name != ".system":
+                if item.is_dir():
+                    shutil.copytree(item, target_item)
+                else:
+                    shutil.copy2(item, target_item)
+        # Backup old skills dir
+        old_backup = codex_skills.parent / "skills.old"
+        if old_backup.exists():
+            shutil.rmtree(old_backup, ignore_errors=True)
+        codex_skills.rename(old_backup)
+
+    return create_junction(codex_skills, hub_skills)
+
