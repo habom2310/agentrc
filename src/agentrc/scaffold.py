@@ -65,16 +65,30 @@ def init_hub(template_dir: Path | None = None, force: bool = False) -> dict:
     backed_up_files = backup_existing_configs(backup_path)
 
     # 2. Create Directory Scaffold
+    bin_dir = hub / "bin"
     subdirs = [
         hub / "rules" / "overrides",
         hub / "skills",
         hub / "agents",
         hub / "mcp",
         hub / "backups",
-        hub / "bin",
+        bin_dir,
     ]
     for d in subdirs:
         d.mkdir(parents=True, exist_ok=True)
+
+    # Populate bin with runner and package
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    for item in ["agentrc.py", "agentrc.bat"]:
+        src_f = repo_root / item
+        if src_f.is_file():
+            shutil.copy2(src_f, bin_dir / item)
+    src_pkg = repo_root / "src" / "agentrc"
+    if src_pkg.is_dir():
+        dest_pkg = bin_dir / "agentrc"
+        if dest_pkg.exists():
+            shutil.rmtree(dest_pkg, ignore_errors=True)
+        shutil.copytree(src_pkg, dest_pkg)
 
     # 3. Copy Templates if provided
     copied_templates = []
