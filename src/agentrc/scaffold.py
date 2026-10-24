@@ -143,6 +143,13 @@ def init_hub(template_dir: Path | None = None, force: bool = False) -> dict:
     if not manifest_file.exists() or force:
         manifest_file.write_text(json.dumps(manifest_data, indent=2), encoding="utf-8")
 
+    # 5. Initial MCP sync across platforms
+    try:
+        from agentrc.mcp_sync import sync_mcp_servers
+        sync_mcp_servers()
+    except Exception:
+        pass
+
     return {
         "hub_dir": str(hub),
         "backed_up_files": backed_up_files,

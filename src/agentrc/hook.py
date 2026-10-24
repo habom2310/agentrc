@@ -58,6 +58,22 @@ def run_session_start_hook() -> int:
             project_claude_rules()
             project_codex_rules()
             project_subagents()
+
+        # Check MCP sync drift
+        hub_mcp = hub / "mcp" / "servers.json"
+        if hub_mcp.is_file():
+            claude_json = home / ".claude.json"
+            gemini_mcp = home / ".gemini" / "config" / "mcp_config.json"
+            gemini_settings = home / ".gemini" / "settings.json"
+            hub_mtime = hub_mcp.stat().st_mtime
+
+            for p in [claude_json, gemini_mcp, gemini_settings]:
+                if p.is_file() and abs(p.stat().st_mtime - hub_mtime) > 1.0:
+                    from agentrc.mcp_sync import get_mcp_status, sync_mcp_servers
+                    st = get_mcp_status(home, hub)
+                    if not st["in_sync"]:
+                        sync_mcp_servers(home, hub)
+                    break
     except Exception as e:
         # Never crash the host AI startup session
         print(f"[agentrc] sync notice: {e}", file=sys.stderr)

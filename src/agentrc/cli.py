@@ -54,6 +54,44 @@ def main():
     hook_parser = subparsers.add_parser("hook", help="Run lifecycle hooks")
     hook_parser.add_argument("event", choices=["session-start"], help="Hook event name")
 
+    # diff
+    diff_parser = subparsers.add_parser("diff", help="Check for unpromoted downstream changes or rule drift")
+    diff_parser.add_argument(
+        "--platform",
+        choices=["all", "gemini", "claude", "codex"],
+        default="all",
+        help="Platform to check drift for (default: all)"
+    )
+
+    # promote
+    promote_parser = subparsers.add_parser("promote", help="Promote drifted rules to hub and reproject")
+    promote_parser.add_argument(
+        "--from-platform",
+        choices=["gemini", "claude", "codex"],
+        default="gemini",
+        help="Platform to promote rule from (default: gemini)"
+    )
+    promote_parser.add_argument(
+        "--target",
+        default="common.md",
+        help="Target rule file in hub/rules/ (default: common.md)"
+    )
+    promote_parser.add_argument(
+        "--header",
+        default=None,
+        help="Optional heading string to promote specific section"
+    )
+
+    # mcp
+    mcp_parser = subparsers.add_parser("mcp", help="Audit and synchronize MCP server registries")
+    mcp_parser.add_argument(
+        "action",
+        nargs="?",
+        choices=["status", "sync"],
+        default="status",
+        help="MCP action to perform (default: status)"
+    )
+
     args = parser.parse_args()
 
     if args.home:
@@ -147,6 +185,130 @@ def main():
     elif args.command == "hook":
         if args.event == "session-start":
             sys.exit(run_session_start_hook())
+
+    elif args.command == "diff":
+        from agentrc.promoter import detect_rule_drift
+        report = detect_rule_drift()
+        print("=== agentrc Rule Drift Audit ===")
+        platforms = ["gemini", "claude", "codex"] if args.platform == "all" else [args.platform]
+        drift_count = 0
+        has_removals = False
+        for p in platforms:
+            info = report.get(p, {})
+            name = {"gemini": "Google Antigravity", "claude": "Claude Code", "codex": "OpenAI Codex"}.get(p, p)
+            if not info.get("exists", False):
+                print(f"- {name}: [NOT FOUND] ({info.get('file')})")
+                continue
+            if not info.get("has_drift", False):
+                print(f"- {name}: [IN SYNC] No drift detected")
+            else:
+                drift_count += 1
+                print(f"- {name}: [DRIFT DETECTED] ({info.get('file')})")
+                for c in info.get("added", []):
+                    hdr = c.header or "(prelude)"
+                    print(f"    + Added:    {hdr} (path: {' > '.join(c.path)})")
+                for m in info.get("modified", []):
+                    hdr = m['source'].header or "(prelude)"
+                    print(f"    * Modified: {hdr}")
+                for r in info.get("removed", []):
+                    hdr = r.header or "(prelude)"
+                    print(f"    - Removed:  {hdr}")
+                    has_removals = True
+        if drift_count == 0:
+            print("\nAll platforms are synchronized with ~/.agentrc hub rules.")
+        else:
+            print(f"\nRule drift detected in {drift_count} platform(s). Use 'agentrc promote' to sync back to hub.")
+            if has_removals:
+                print("Note: Downstream rule removals cannot be automatically promoted; delete them directly from ~/.agentrc/rules/ to synchronize.")
+
+    elif args.command == "promote":
+        from agentrc.promoter import detect_rule_drift, promote_chunk
+        from agentrc.projector import project_gemini_rules, project_claude_rules, project_codex_rules
+        import shutil
+        import datetime
+
+        report = detect_rule_drift()
+        plat_info = report.get(args.from_platform, {})
+        if not plat_info.get("exists", False):
+            print(f"Error: Target platform '{args.from_platform}' rules file does not exist ({plat_info.get('file')})")
+            sys.exit(1)
+
+        drifted = plat_info.get("added", []) + [m["source"] for m in plat_info.get("modified", [])]
+        if not drifted:
+            print(f"No rule drift found in platform '{args.from_platform}'. Nothing to promote.")
+            sys.exit(0)
+
+        to_promote = []
+        if args.header:
+            target_hdr = args.header.strip().lower()
+            for c in drifted:
+                if target_hdr in c.header.lower():
+                    to_promote.append(c)
+            if not to_promote:
+                print(f"Error: No drifted chunk matching header '{args.header}' found in {args.from_platform}.")
+                sys.exit(1)
+        else:
+            to_promote = drifted
+
+        # If selective promotion is performed, back up downstream file to prevent data loss upon reprojection
+        if len(to_promote) < len(drifted):
+            downstream_file = Path(plat_info["file"])
+            if downstream_file.is_file():
+                ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_path = downstream_file.with_suffix(f".backup_{ts}.md")
+                shutil.copy2(downstream_file, backup_path)
+                print(f"[agentrc safety] Backed up {downstream_file.name} to {backup_path.name}")
+
+        print(f"=== Promoting {len(to_promote)} Rule(s) from {args.from_platform} to {args.target} ===")
+        has_failure = False
+        for chunk in to_promote:
+            ok, msg = promote_chunk(chunk, target_rule_file=args.target, reproject=False)
+            print(f"  {'[OK]' if ok else '[FAIL]'} {msg}")
+            if not ok:
+                has_failure = True
+
+        if not has_failure:
+            project_gemini_rules()
+            project_claude_rules()
+            project_codex_rules()
+            print("[OK] Reprojected rules across all platforms.")
+        else:
+            print("[FAIL] Promotion failed; skipped reprojection.")
+            sys.exit(1)
+
+    elif args.command == "mcp":
+        from agentrc.mcp_sync import get_mcp_status, sync_mcp_servers
+        if args.action == "status":
+            st = get_mcp_status()
+            print("=== agentrc MCP Registry Status ===")
+            print(f"Hub Status:       {'Configured' if st['hub']['exists'] else 'Missing'} ({st['hub']['path']})")
+            print(f"Registered in Hub: {len(st['hub']['servers'])} server(s)")
+            for name, cfg in st["hub"]["servers"].items():
+                kind = cfg.get("type") or ("http" if "url" in cfg else "stdio")
+                target = cfg.get("url") or cfg.get("command", "")
+                print(f"  * {name} [{kind}]: {target}")
+
+            print("\n=== AI Platform MCP Sync Status ===")
+            print(f"- Claude Code:     {len(st['claude']['servers'])} server(s)")
+            print(f"- Antigravity:     {len(st['gemini']['servers'])} server(s)")
+            print(f"\nOverall Sync:      {'[IN SYNC]' if st['in_sync'] else '[DRIFT DETECTED]'}")
+            if st["missing_in_claude"]:
+                print(f"  ! Missing in Claude:     {', '.join(st['missing_in_claude'])}")
+            if st["missing_in_gemini"]:
+                print(f"  ! Missing in Antigravity:{', '.join(st['missing_in_gemini'])}")
+            if st["untracked_in_claude"]:
+                print(f"  + Untracked in Claude:   {', '.join(st['untracked_in_claude'])}")
+            if st["untracked_in_gemini"]:
+                print(f"  + Untracked in Antigrav: {', '.join(st['untracked_in_gemini'])}")
+            if not st["in_sync"]:
+                print("\nRun 'agentrc mcp sync' to bidirectionally synchronize MCP servers.")
+
+        elif args.action == "sync":
+            print("=== Synchronizing MCP Servers across All Platforms ===")
+            ok, actions = sync_mcp_servers()
+            for a in actions:
+                print(f"  + {a}")
+            print(f"\nResult: {'[OK] Complete' if ok else '[FAIL]'}")
 
 
 if __name__ == "__main__":

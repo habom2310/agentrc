@@ -92,6 +92,26 @@ def run_doctor(fix: bool = False) -> dict:
         else:
             issues.append("~/.codex/skills does not exist")
 
+    # 6. MCP Registry Check
+    from agentrc.mcp_sync import get_mcp_status, sync_mcp_servers
+    mcp_st = get_mcp_status(home, hub)
+    if not mcp_st["hub"]["exists"]:
+        issues.append("~/.agentrc/mcp/servers.json missing")
+    elif not mcp_st["in_sync"]:
+        drift_details = []
+        if mcp_st["missing_in_claude"]:
+            drift_details.append(f"missing in Claude: {', '.join(mcp_st['missing_in_claude'])}")
+        if mcp_st["missing_in_gemini"]:
+            drift_details.append(f"missing in Antigravity: {', '.join(mcp_st['missing_in_gemini'])}")
+        if mcp_st["untracked_in_claude"]:
+            drift_details.append(f"untracked in Claude: {', '.join(mcp_st['untracked_in_claude'])}")
+        if mcp_st["untracked_in_gemini"]:
+            drift_details.append(f"untracked in Antigravity: {', '.join(mcp_st['untracked_in_gemini'])}")
+        issues.append(f"MCP servers out of sync ({'; '.join(drift_details)})")
+    else:
+        server_count = len(mcp_st["hub"]["servers"])
+        checks.append(f"MCP servers synchronized across hub and platforms ({server_count} registered)")
+
     # Auto-repair if requested
     repairs = []
     if fix and issues:
@@ -103,6 +123,9 @@ def run_doctor(fix: bool = False) -> dict:
         project_gemini_rules()
         project_claude_rules()
         project_subagents()
+        if not mcp_st["in_sync"]:
+            _, mcp_actions = sync_mcp_servers(home, hub)
+            repairs.extend(mcp_actions)
         repairs.append("Ran link_skills and projections across all platforms.")
 
     return {
