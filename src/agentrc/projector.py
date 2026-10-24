@@ -63,10 +63,10 @@ def project_claude_rules(use_imports: bool = True) -> tuple[bool, str]:
     if use_imports:
         content = (
             f"{HEADER_GUARD}"
-            f"@{rules_dir / 'common.md'}\n"
-            f"@{rules_dir / 'code-tools.md'}\n"
-            f"@{rules_dir / 'handoffs.md'}\n"
-            f"@{rules_dir / 'overrides' / 'claude.md'}\n"
+            f"@{(rules_dir / 'common.md').as_posix()}\n"
+            f"@{(rules_dir / 'code-tools.md').as_posix()}\n"
+            f"@{(rules_dir / 'handoffs.md').as_posix()}\n"
+            f"@{(rules_dir / 'overrides' / 'claude.md').as_posix()}\n"
         )
     else:
         parts = [HEADER_GUARD]

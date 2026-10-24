@@ -134,7 +134,7 @@ def link_skills_for_codex() -> tuple[bool, str]:
         # Migrate existing unique skills to hub
         for item in codex_skills.iterdir():
             target_item = hub_skills / item.name
-            if not target_item.exists() and item.name != ".system":
+            if not target_item.exists():
                 if item.is_dir():
                     shutil.copytree(item, target_item)
                 else:

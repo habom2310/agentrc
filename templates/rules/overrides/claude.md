@@ -34,3 +34,7 @@ After creating any PR, run one Copilot CLI review round:
 4. Post a PR comment (`gh pr comment`) mapping each finding number to fixed (commit sha) or skipped (reason), noting it was written by Claude Code.
 5. One round only unless asked for more.
 6. After the Copilot fixes are pushed, run one `reviewer` subagent pass over the whole PR (`gh pr diff <N>`), telling it which Copilot findings are already settled. Fix its valid findings, commit and push, then post a second PR comment mapping each finding to fixed (commit sha) or skipped (reason), noting it was written by Claude Code. Also one round only unless asked for more.
+
+@RTK.md
+
+- Do not prefix ripwire or codegraph with `rtk`; their output is already compact.

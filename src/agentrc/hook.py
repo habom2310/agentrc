@@ -6,7 +6,12 @@ Fast (<10ms), headless, non-blocking drift synchronization.
 from pathlib import Path
 import sys
 from agentrc.detector import get_home_dir, get_hub_dir
-from agentrc.projector import project_gemini_rules, project_claude_rules, project_subagents
+from agentrc.projector import (
+    project_gemini_rules,
+    project_claude_rules,
+    project_codex_rules,
+    project_subagents,
+)
 
 
 def run_session_start_hook() -> int:
@@ -31,6 +36,7 @@ def run_session_start_hook() -> int:
                     # Hub rules were updated, reproject deterministically
                     project_gemini_rules()
                     project_claude_rules()
+                    project_codex_rules()
                     project_subagents()
     except Exception as e:
         # Never crash the host AI startup session
