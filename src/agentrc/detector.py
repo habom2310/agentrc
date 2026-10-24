@@ -3,16 +3,36 @@ Platform detector for agentrc.
 Detects installed AI coding assistants and their configuration status.
 """
 
+import os
 from pathlib import Path
 import shutil
 import json
 
+_HOME_OVERRIDE: Path | None = None
+_HUB_OVERRIDE: Path | None = None
+
+
+def set_custom_home(home_path: Path | None, hub_path: Path | None = None):
+    global _HOME_OVERRIDE, _HUB_OVERRIDE
+    _HOME_OVERRIDE = home_path
+    _HUB_OVERRIDE = hub_path
+
 
 def get_home_dir() -> Path:
+    if _HOME_OVERRIDE:
+        return _HOME_OVERRIDE
+    env = os.environ.get("AGENTRC_HOME")
+    if env:
+        return Path(env)
     return Path.home()
 
 
 def get_hub_dir() -> Path:
+    if _HUB_OVERRIDE:
+        return _HUB_OVERRIDE
+    env = os.environ.get("AGENTRC_HUB")
+    if env:
+        return Path(env)
     return get_home_dir() / ".agentrc"
 
 

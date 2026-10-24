@@ -7,7 +7,7 @@ import sys
 import json
 from pathlib import Path
 
-from agentrc.detector import detect_platforms
+from agentrc.detector import detect_platforms, set_custom_home
 from agentrc.scaffold import init_hub
 from agentrc.linker import link_skills_for_claude, link_skills_for_gemini, link_skills_for_codex
 from agentrc.projector import project_gemini_rules, project_claude_rules, project_codex_rules, project_subagents
@@ -20,6 +20,12 @@ def main():
     parser = argparse.ArgumentParser(
         prog="agentrc",
         description="agentrc: Centralized Multi-AI Configuration & Skill Management Hub"
+    )
+    parser.add_argument(
+        "--home", "-H",
+        type=str,
+        default=None,
+        help="Sandbox root directory (overrides user home for safe, isolated testing)"
     )
     subparsers = parser.add_subparsers(dest="command", help="Subcommand to run")
 
@@ -49,6 +55,11 @@ def main():
     hook_parser.add_argument("event", choices=["session-start"], help="Hook event name")
 
     args = parser.parse_args()
+
+    if args.home:
+        custom_p = Path(args.home).resolve()
+        set_custom_home(custom_p)
+        print(f"[agentrc sandbox] Operating isolated in: {custom_p}")
 
     if not args.command:
         parser.print_help()
