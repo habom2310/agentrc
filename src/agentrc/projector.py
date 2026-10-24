@@ -253,18 +253,16 @@ def project_subagents() -> tuple[bool, list[str]]:
         if mode == "read-write" or meta.get("enable_write_tools") == "true":
             agy_fm.extend([
                 "tools:",
-                "  - read",
-                "  - edit",
-                "  - terminal",
-                "enable_write_tools: true",
-                "enableWriteTools: true",
-                "enable_mcp_tools: true",
+                "  - run_command",
+                "  - write_file",
+                "  - edit_file",
+                "  - read_file",
             ])
         else:
             agy_fm.extend([
                 "tools:",
-                "  - read",
-                "  - terminal",
+                "  - run_command",
+                "  - read_file",
             ])
         agy_fm.append("---")
         agy_content = "\n".join(agy_fm) + body

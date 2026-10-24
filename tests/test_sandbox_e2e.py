@@ -112,11 +112,11 @@ class TestSandboxE2E(unittest.TestCase):
 
         # Verify Antigravity subagent tool schemas
         gemini_imp = (self.sandbox / ".gemini" / "config" / "agents" / "implementer.md").read_text(encoding="utf-8")
-        self.assertIn("tools:\n  - read\n  - edit\n  - terminal", gemini_imp)
+        self.assertIn("tools:\n  - run_command\n  - write_file\n  - edit_file\n  - read_file", gemini_imp)
         self.assertIn("subagent: true", gemini_imp)
 
         gemini_rev = (self.sandbox / ".gemini" / "config" / "agents" / "reviewer.md").read_text(encoding="utf-8")
-        self.assertIn("tools:\n  - read\n  - terminal", gemini_rev)
+        self.assertIn("tools:\n  - run_command\n  - read_file", gemini_rev)
         self.assertIn("subagent: true", gemini_rev)
 
         # 5. Doctor Health Check
