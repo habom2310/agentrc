@@ -11,10 +11,12 @@ ESTIMATED_CHARS_PER_TOKEN = 4.0
 TARGET_BUDGET = 2000
 
 
-def estimate_tokens(text: str) -> int:
-    if not text:
+def estimate_tokens(text_or_chars: str | int) -> int:
+    if isinstance(text_or_chars, int):
+        return int(text_or_chars / ESTIMATED_CHARS_PER_TOKEN)
+    if not text_or_chars:
         return 0
-    return int(len(text.strip()) / ESTIMATED_CHARS_PER_TOKEN)
+    return int(len(text_or_chars.strip()) / ESTIMATED_CHARS_PER_TOKEN)
 
 
 def audit_budget() -> dict:
@@ -24,14 +26,15 @@ def audit_budget() -> dict:
 
     breakdown = {}
 
-    # 1. Rules
+    # 1. Core Rules (Universal rules loaded across all platforms)
     rules_chars = 0
     if rules_dir.is_dir():
-        for f in rules_dir.glob("*.md"):
-            rules_chars += len(f.read_text(encoding="utf-8", errors="replace"))
-        for f in (rules_dir / "overrides").glob("*.md"):
-            rules_chars += len(f.read_text(encoding="utf-8", errors="replace"))
-    breakdown["core_rules_tokens"] = estimate_tokens(" " * rules_chars)
+        for f in ["common.md", "code-tools.md", "handoffs.md"]:
+            p = rules_dir / f
+            if p.is_file():
+                rules_chars += len(p.read_text(encoding="utf-8", errors="replace"))
+
+    breakdown["core_rules_tokens"] = estimate_tokens(rules_chars)
 
     # 2. Skills Registry (Progressive disclosure: YAML frontmatter name + description only)
     skill_desc_chars = 0
@@ -43,13 +46,16 @@ def audit_budget() -> dict:
                 if skill_md.is_file():
                     skill_count += 1
                     txt = skill_md.read_text(encoding="utf-8", errors="replace")
-                    # Extract frontmatter only
+                    # Extract name and description lines only
                     if txt.startswith("---"):
                         parts = txt.split("---", 2)
                         if len(parts) >= 3:
-                            skill_desc_chars += len(parts[1])
+                            for line in parts[1].splitlines():
+                                sline = line.strip()
+                                if sline.startswith(("name:", "description:")):
+                                    skill_desc_chars += len(sline)
     breakdown["skills_count"] = skill_count
-    breakdown["skills_registry_tokens"] = estimate_tokens(" " * skill_desc_chars)
+    breakdown["skills_registry_tokens"] = estimate_tokens(skill_desc_chars)
 
     total = breakdown["core_rules_tokens"] + breakdown["skills_registry_tokens"]
     breakdown["total_boot_tokens"] = total
