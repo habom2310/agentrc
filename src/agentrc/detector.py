@@ -146,13 +146,47 @@ def detect_platforms() -> dict:
 
     # 4. Cursor
     cursor_dir = home / ".cursor"
+    cursor_skills = cursor_dir / "skills"
+    cursor_rules_mdc = cursor_dir / "rules" / "agentrc.mdc"
+    cursor_rules_legacy = home / ".cursorrules"
+    skills_linked = False
+    if cursor_skills.is_dir():
+        try:
+            skills_linked = cursor_skills.is_symlink() or (cursor_skills.resolve() != cursor_skills)
+        except Exception:
+            pass
+
     report["platforms"]["cursor"] = {
         "name": "Cursor",
         "detected": cursor_dir.is_dir(),
         "path": str(cursor_dir),
+        "rules_exists": cursor_rules_mdc.is_file() or cursor_rules_legacy.is_file(),
+        "skills_linked": skills_linked,
     }
 
-    # 5. Copilot CLI
+    # 5. Windsurf
+    windsurf_dir = home / ".codeium" / "windsurf"
+    if not windsurf_dir.is_dir():
+        windsurf_dir = home / ".windsurf"
+    windsurf_skills = windsurf_dir / "skills"
+    windsurf_rules = windsurf_dir / "memories" / "global_rules.md"
+    windsurf_rules_legacy = home / ".windsurfrules"
+    ws_linked = False
+    if windsurf_skills.is_dir():
+        try:
+            ws_linked = windsurf_skills.is_symlink() or (windsurf_skills.resolve() != windsurf_skills)
+        except Exception:
+            pass
+
+    report["platforms"]["windsurf"] = {
+        "name": "Windsurf",
+        "detected": windsurf_dir.is_dir(),
+        "path": str(windsurf_dir),
+        "rules_exists": windsurf_rules.is_file() or windsurf_rules_legacy.is_file(),
+        "skills_linked": ws_linked,
+    }
+
+    # 6. Copilot CLI
     copilot_path = shutil.which("copilot")
     report["platforms"]["copilot"] = {
         "name": "GitHub Copilot CLI",

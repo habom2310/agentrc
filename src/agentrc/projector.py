@@ -121,6 +121,79 @@ def project_codex_rules() -> tuple[bool, str]:
     return True, f"Projected AGENTS.md and ChatGPT export ({len(content)} chars)"
 
 
+def project_cursor_rules(cursor_dir: Path | None = None) -> tuple[bool, str]:
+    home = get_home_dir()
+    hub = get_hub_dir()
+    target_dir = cursor_dir or (home / ".cursor")
+
+    rules_dir = hub / "rules"
+    if not rules_dir.is_dir():
+        return False, f"Rules directory not found: {rules_dir}"
+
+    parts = [HEADER_GUARD]
+    for fname in ["common.md", "code-tools.md", "handoffs.md"]:
+        p = rules_dir / fname
+        if p.is_file():
+            parts.append(p.read_text(encoding="utf-8").strip())
+
+    cursor_override = rules_dir / "overrides" / "cursor.md"
+    if cursor_override.is_file():
+        parts.append(cursor_override.read_text(encoding="utf-8").strip())
+
+    content = "\n\n".join(parts) + "\n"
+
+    # Only project if cursor directory exists or cursorrules is present
+    if target_dir.is_dir() or (home / ".cursorrules").is_file():
+        rules_folder = target_dir / "rules"
+        rules_folder.mkdir(parents=True, exist_ok=True)
+        mdc_file = rules_folder / "agentrc.mdc"
+        mdc_content = (
+            "---\n"
+            "description: Global multi-assistant heuristics and engineering guidelines\n"
+            "globs: *\n"
+            "---\n\n"
+            f"{content}"
+        )
+        mdc_file.write_text(mdc_content, encoding="utf-8")
+        (home / ".cursorrules").write_text(content, encoding="utf-8")
+        return True, f"Projected Cursor rules ({len(content)} chars)"
+
+    return True, "Cursor not detected/connected; skipped projection"
+
+
+def project_windsurf_rules(windsurf_dir: Path | None = None) -> tuple[bool, str]:
+    home = get_home_dir()
+    hub = get_hub_dir()
+    target_dir = windsurf_dir or (home / ".codeium" / "windsurf")
+    if not target_dir.is_dir():
+        target_dir = home / ".windsurf"
+
+    rules_dir = hub / "rules"
+    if not rules_dir.is_dir():
+        return False, f"Rules directory not found: {rules_dir}"
+
+    parts = [HEADER_GUARD]
+    for fname in ["common.md", "code-tools.md", "handoffs.md"]:
+        p = rules_dir / fname
+        if p.is_file():
+            parts.append(p.read_text(encoding="utf-8").strip())
+
+    ws_override = rules_dir / "overrides" / "windsurf.md"
+    if ws_override.is_file():
+        parts.append(ws_override.read_text(encoding="utf-8").strip())
+
+    content = "\n\n".join(parts) + "\n"
+
+    if target_dir.is_dir() or (home / ".windsurfrules").is_file():
+        memories = target_dir / "memories"
+        memories.mkdir(parents=True, exist_ok=True)
+        (memories / "global_rules.md").write_text(content, encoding="utf-8")
+        (home / ".windsurfrules").write_text(content, encoding="utf-8")
+        return True, f"Projected Windsurf rules ({len(content)} chars)"
+
+    return True, "Windsurf not detected/connected; skipped projection"
+
+
 
 def parse_frontmatter(content: str) -> tuple[dict, str]:
     if not content.startswith("---"):

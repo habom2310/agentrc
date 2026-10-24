@@ -103,7 +103,64 @@ def run_doctor(fix: bool = False) -> dict:
         else:
             checks.append("Codex skill manifests (openai.yaml) present")
 
-    # 6. MCP Registry Check
+    # 6. Cursor Check (if connected or actively configured)
+    cursor_dir = home / ".cursor"
+    cursor_skills = cursor_dir / "skills"
+    cursor_rules = cursor_dir / "rules" / "agentrc.mdc"
+    cursor_legacy = home / ".cursorrules"
+
+    cursor_enabled = False
+    manifest_file = hub / "agentrc.json"
+    if manifest_file.is_file():
+        try:
+            m_data = json.loads(manifest_file.read_text(encoding="utf-8"))
+            cursor_enabled = m_data.get("platforms", {}).get("cursor", {}).get("enabled", False)
+        except Exception:
+            pass
+
+    if cursor_enabled or cursor_skills.exists() or cursor_rules.is_file() or cursor_legacy.is_file():
+        if cursor_skills.exists() and cursor_skills.resolve() == hub_skills.resolve():
+            checks.append("Cursor skills junction intact")
+        elif cursor_skills.exists():
+            issues.append("~/.cursor/skills is not linked to ~/.agentrc/skills")
+        else:
+            issues.append("~/.cursor/skills does not exist")
+
+        if cursor_rules.is_file() or cursor_legacy.is_file():
+            checks.append("Cursor rules projected from hub")
+        else:
+            issues.append("Cursor rules missing (~/.cursor/rules/agentrc.mdc or ~/.cursorrules)")
+
+    # 7. Windsurf Check (if connected or actively configured)
+    windsurf_dir = home / ".codeium" / "windsurf"
+    if not windsurf_dir.is_dir():
+        windsurf_dir = home / ".windsurf"
+    windsurf_skills = windsurf_dir / "skills"
+    ws_rules = windsurf_dir / "memories" / "global_rules.md"
+    ws_legacy = home / ".windsurfrules"
+
+    windsurf_enabled = False
+    if manifest_file.is_file():
+        try:
+            m_data = json.loads(manifest_file.read_text(encoding="utf-8"))
+            windsurf_enabled = m_data.get("platforms", {}).get("windsurf", {}).get("enabled", False)
+        except Exception:
+            pass
+
+    if windsurf_enabled or windsurf_skills.exists() or ws_rules.is_file() or ws_legacy.is_file():
+        if windsurf_skills.exists() and windsurf_skills.resolve() == hub_skills.resolve():
+            checks.append("Windsurf skills junction intact")
+        elif windsurf_skills.exists():
+            issues.append("Windsurf skills directory is not linked to ~/.agentrc/skills")
+        else:
+            issues.append("Windsurf skills directory does not exist")
+
+        if ws_rules.is_file() or ws_legacy.is_file():
+            checks.append("Windsurf rules projected from hub")
+        else:
+            issues.append("Windsurf rules missing")
+
+    # 8. MCP Registry Check
     from agentrc.mcp_sync import get_mcp_status, sync_mcp_servers
     mcp_st = get_mcp_status(home, hub)
     if not mcp_st["hub"]["exists"]:
@@ -131,6 +188,12 @@ def run_doctor(fix: bool = False) -> dict:
         if codex_dir.is_dir():
             link_skills_for_codex()
             project_codex_rules()
+        if cursor_dir.is_dir():
+            from agentrc.connect import connect_cursor
+            connect_cursor()
+        if windsurf_dir.is_dir():
+            from agentrc.connect import connect_windsurf
+            connect_windsurf()
         project_gemini_rules()
         project_claude_rules()
         project_subagents()

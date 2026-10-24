@@ -92,6 +92,32 @@ def main():
         help="MCP action to perform (default: status)"
     )
 
+    # push
+    push_parser = subparsers.add_parser("push", help="Commit and push ~/.agentrc hub changes to remote")
+    push_parser.add_argument("-m", "--message", default=None, help="Commit message")
+    push_parser.add_argument("--remote", default="origin", help="Git remote name (default: origin)")
+
+    # pull
+    pull_parser = subparsers.add_parser("pull", help="Pull latest ~/.agentrc hub changes from remote and reproject")
+    pull_parser.add_argument("--remote", default="origin", help="Git remote name (default: origin)")
+    pull_parser.add_argument("--no-reproject", action="store_true", help="Skip automatic reprojection after pull")
+
+    # git
+    git_parser = subparsers.add_parser("git", help="Manage git repository for ~/.agentrc hub")
+    git_parser.add_argument("action", choices=["status", "init"], default="status", nargs="?", help="Git action to perform (default: status)")
+    git_parser.add_argument("--remote-url", default=None, help="Remote repository URL for init")
+
+    # connect
+    connect_parser = subparsers.add_parser("connect", help="Connect an AI coding assistant (Cursor, Windsurf, Codex, etc.)")
+    connect_parser.add_argument("platform", choices=["cursor", "windsurf", "codex", "claude", "gemini"], help="AI platform to connect")
+    connect_parser.add_argument("--target-dir", default=None, help="Custom target directory for the assistant")
+
+    # export
+    export_parser = subparsers.add_parser("export", help="Generate consolidated prompt block for web/desktop AI interfaces")
+    export_parser.add_argument("target", choices=["chatgpt", "claude", "cursor"], help="Target AI platform export format")
+    export_parser.add_argument("-o", "--output", default=None, help="Output file path (default: ~/.agentrc/export/<target>_custom_instructions.md)")
+    export_parser.add_argument("--stdout", action="store_true", help="Print prompt block directly to stdout")
+
     args = parser.parse_args()
 
     if args.home:
@@ -119,6 +145,10 @@ def main():
                 print(f"    Rules: {'OK' if p['rules_exists'] else 'Missing'} | Junction: {p['skills_is_junction']}")
             elif key == "codex" and p["detected"]:
                 print(f"    Rules: {'OK' if p['rules_exists'] else 'Missing'} | Skills Linked: {p['skills_linked']}")
+            elif key == "cursor" and p["detected"]:
+                print(f"    Rules: {'OK' if p.get('rules_exists') else 'Missing'} | Skills Linked: {p.get('skills_linked')}")
+            elif key == "windsurf" and p["detected"]:
+                print(f"    Rules: {'OK' if p.get('rules_exists') else 'Missing'} | Skills Linked: {p.get('skills_linked')}")
 
     elif args.command == "init":
         templates_path = Path(args.templates) if args.templates else None
@@ -160,6 +190,13 @@ def main():
 
         ok_x, msg_x = project_codex_rules()
         print(f"Codex AGENTS.md:      {'[OK]' if ok_x else '[FAIL]'} {msg_x}")
+
+        from agentrc.projector import project_cursor_rules, project_windsurf_rules
+        ok_cur, msg_cur = project_cursor_rules()
+        print(f"Cursor rules:         {'[OK]' if ok_cur else '[FAIL]'} {msg_cur}")
+
+        ok_ws, msg_ws = project_windsurf_rules()
+        print(f"Windsurf rules:       {'[OK]' if ok_ws else '[FAIL]'} {msg_ws}")
 
         ok_a, msgs_a = project_subagents()
         print(f"Subagents:            {'[OK]' if ok_a else '[FAIL]'}")
@@ -274,6 +311,9 @@ def main():
             project_gemini_rules()
             project_claude_rules()
             project_codex_rules()
+            from agentrc.projector import project_cursor_rules, project_windsurf_rules
+            project_cursor_rules()
+            project_windsurf_rules()
             print("[OK] Reprojected rules across all platforms.")
         else:
             print("[FAIL] Promotion failed; skipped reprojection.")
@@ -312,6 +352,84 @@ def main():
             for a in actions:
                 print(f"  + {a}")
             print(f"\nResult: {'[OK] Complete' if ok else '[FAIL]'}")
+
+    elif args.command == "push":
+        from agentrc.git_sync import git_push
+        ok, msg = git_push(message=args.message, remote=args.remote)
+        print(f"=== agentrc Hub Push: {'[OK]' if ok else '[FAIL]'} ===")
+        print(msg)
+        if not ok:
+            sys.exit(1)
+
+    elif args.command == "pull":
+        from agentrc.git_sync import git_pull
+        ok, msg = git_pull(remote=args.remote, reproject=not args.no_reproject)
+        print(f"=== agentrc Hub Pull: {'[OK]' if ok else '[FAIL]'} ===")
+        print(msg)
+        if not ok:
+            sys.exit(1)
+
+    elif args.command == "git":
+        from agentrc.git_sync import git_status, git_init_hub
+        if args.action == "status":
+            st = git_status()
+            print("=== agentrc Hub Git Status ===")
+            if not st.get("git_installed", False):
+                print("Git is not installed or not found in PATH.")
+                sys.exit(1)
+            if not st.get("is_repo", False):
+                print("Hub is not a git repository. Run 'agentrc git init' to initialize.")
+                sys.exit(0)
+            print(f"Branch:   {st.get('branch', 'unknown')}")
+            print(f"Status:   {'Clean' if st.get('is_clean') else 'Uncommitted changes'}")
+            remotes = st.get("remotes", {})
+            if remotes:
+                print("Remotes:")
+                for rname, rurl in remotes.items():
+                    print(f"  * {rname}: {rurl}")
+            else:
+                print("Remotes:  None configured")
+            if st.get("modified"):
+                print("Modified files:")
+                for f in st["modified"]:
+                    print(f"  * {f}")
+            if st.get("untracked"):
+                print("Untracked files:")
+                for f in st["untracked"]:
+                    print(f"  + {f}")
+
+        elif args.action == "init":
+            ok, msg = git_init_hub(remote_url=args.remote_url)
+            print(f"=== agentrc Git Init: {'[OK]' if ok else '[FAIL]'} ===")
+            print(msg)
+            if not ok:
+                sys.exit(1)
+
+    elif args.command == "connect":
+        from agentrc.connect import connect_platform
+        target_path = Path(args.target_dir).resolve() if args.target_dir else None
+        ok, msg = connect_platform(args.platform, target_dir=target_path)
+        print(f"=== agentrc Connect {args.platform}: {'[OK]' if ok else '[FAIL]'} ===")
+        print(msg)
+        if not ok:
+            sys.exit(1)
+
+    elif args.command == "export":
+        from agentrc.exporter import export_prompt_block
+        ok, content, final_path = export_prompt_block(args.target, output_path=args.output)
+        if not ok:
+            print(f"Error: {content}")
+            sys.exit(1)
+        if args.stdout:
+            print(content, end="")
+        else:
+            print(f"=== agentrc Prompt Block Export: [OK] ===")
+            print(f"Platform: {args.target}")
+            print(f"Exported to: {final_path}")
+            print(f"Size: {len(content)} characters (~{len(content.split())} words)")
+            print("\nPreview (first 10 lines):")
+            for line in content.splitlines()[:10]:
+                print(f"  {line}")
 
 
 if __name__ == "__main__":
