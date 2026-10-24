@@ -165,14 +165,18 @@ def project_subagents() -> tuple[bool, list[str]]:
             f"description: {desc}",
             f"model: {agy_model}",
             f"effort: {effort}",
-            "---",
         ]
+        if mode == "read-write" or meta.get("enable_write_tools") == "true":
+            agy_fm.append("enable_write_tools: true")
+            agy_fm.append("enableWriteTools: true")
+            agy_fm.append("enable_mcp_tools: true")
+        agy_fm.append("---")
         agy_content = "\n".join(agy_fm) + body
         (gemini_agents / f"{name}.md").write_text(agy_content, encoding="utf-8")
 
         # Project for Claude Code (inject tools & claude models)
         claude_model = "claude-haiku-5-5" if (tier == "fast" or tier == "inherit") else "claude-sonnet-5-5"
-        claude_tools = "Bash, Read, Edit, Glob, Grep" if mode == "read-write" else "Bash, Read, Glob, Grep"
+        claude_tools = "Bash, Read, Edit, Write, Glob, Grep" if mode == "read-write" else "Bash, Read, Glob, Grep"
         claude_fm = [
             "---",
             f"name: {name}",
