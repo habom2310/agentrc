@@ -9,7 +9,7 @@ from pathlib import Path
 
 from agentrc.detector import detect_platforms, set_custom_home
 from agentrc.scaffold import init_hub
-from agentrc.linker import link_skills_for_claude, link_skills_for_gemini, link_skills_for_codex
+from agentrc.linker import link_skills_for_claude, link_skills_for_gemini, link_skills_for_codex, project_codex_skill_manifests
 from agentrc.projector import project_gemini_rules, project_claude_rules, project_codex_rules, project_subagents
 from agentrc.doctor import run_doctor
 from agentrc.token_budget import audit_budget
@@ -146,6 +146,9 @@ def main():
 
         ok_codex, msg_codex = link_skills_for_codex()
         print(f"Codex / ChatGPT: {'[OK]' if ok_codex else '[WARN]'} {msg_codex}")
+
+        ok_m, msg_m = project_codex_skill_manifests()
+        print(f"Codex Manifests: {'[OK]' if ok_m else '[WARN]'} {msg_m}")
 
     elif args.command == "project":
         print("=== Projecting Rules and Subagents ===")

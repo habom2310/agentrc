@@ -92,6 +92,17 @@ def run_doctor(fix: bool = False) -> dict:
         else:
             issues.append("~/.codex/skills does not exist")
 
+        # Check Codex skill manifests
+        missing_manifests = []
+        if hub_skills.is_dir():
+            for s_dir in hub_skills.iterdir():
+                if s_dir.is_dir() and (s_dir / "SKILL.md").is_file() and not (s_dir / "agents" / "openai.yaml").is_file():
+                    missing_manifests.append(s_dir.name)
+        if missing_manifests:
+            issues.append(f"Codex skill manifests missing in {len(missing_manifests)} skill(s)")
+        else:
+            checks.append("Codex skill manifests (openai.yaml) present")
+
     # 6. MCP Registry Check
     from agentrc.mcp_sync import get_mcp_status, sync_mcp_servers
     mcp_st = get_mcp_status(home, hub)

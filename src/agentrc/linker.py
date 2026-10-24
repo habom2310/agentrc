@@ -163,5 +163,112 @@ def link_skills_for_codex() -> tuple[bool, str]:
         except Exception:
             shutil.move(str(codex_skills), str(old_backup))
 
-    return create_junction(codex_skills, hub_skills)
+    res, msg = create_junction(codex_skills, hub_skills)
+    if res:
+        project_codex_skill_manifests(hub)
+    return res, msg
+
+
+def _parse_skill_frontmatter(skill_md_path: Path) -> dict:
+    """
+    Parses SKILL.md frontmatter including YAML multiline block scalars (description: >).
+    Returns dict with 'name' and 'description' keys.
+    """
+    text = skill_md_path.read_text(encoding="utf-8")
+    if not text.startswith("---"):
+        return {}
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        return {}
+
+    meta = {}
+    current_key = None
+    current_val_lines = []
+
+    for line in parts[1].strip().splitlines():
+        stripped = line.strip()
+        if ":" in line and not line[0].isspace():
+            # Save previous key
+            if current_key:
+                meta[current_key] = " ".join(current_val_lines).strip()
+            k, v = line.split(":", 1)
+            current_key = k.strip()
+            v = v.strip()
+            current_val_lines = []
+            if v and v not in (">", "|", ">-", "|-"):
+                current_val_lines.append(v.strip('"').strip("'"))
+        elif current_key and line[0:1].isspace():
+            current_val_lines.append(stripped)
+
+    if current_key:
+        meta[current_key] = " ".join(current_val_lines).strip()
+
+    return meta
+
+
+def _to_title_case(slug: str) -> str:
+    """Converts a kebab-case slug to Title Case."""
+    return " ".join(w.capitalize() for w in slug.split("-"))
+
+
+def _first_sentence(text: str, max_len: int = 80) -> str:
+    """Extracts the first sentence, truncated to max_len."""
+    # Split on '. ' to avoid breaking on abbreviations
+    if ". " in text:
+        first = text.split(". ")[0].strip() + "."
+    elif "." in text:
+        first = text.split(".")[0].strip() + "."
+    else:
+        first = text.strip()
+    if len(first) > max_len:
+        first = first[:max_len - 3].rsplit(" ", 1)[0] + "..."
+    return first
+
+
+def project_codex_skill_manifests(hub_dir: Path | None = None) -> tuple[bool, str]:
+    """
+    Generates agents/openai.yaml for skills that are missing it.
+    Codex CLI requires this manifest to register skills in the session catalog.
+    """
+    if hub_dir is None:
+        hub_dir = get_hub_dir()
+
+    skills_dir = hub_dir / "skills"
+    if not skills_dir.is_dir():
+        return False, "Skills directory not found"
+
+    generated = []
+    for skill_dir in sorted(skills_dir.iterdir()):
+        if not skill_dir.is_dir():
+            continue
+        skill_md = skill_dir / "SKILL.md"
+        manifest = skill_dir / "agents" / "openai.yaml"
+        if not skill_md.is_file() or manifest.is_file():
+            continue
+
+        fm = _parse_skill_frontmatter(skill_md)
+        name = fm.get("name", skill_dir.name)
+        desc = fm.get("description", "")
+
+        display_name = _to_title_case(name)
+        short_desc = _first_sentence(desc) if desc else f"{display_name} skill"
+
+        # Escape double quotes in YAML values
+        display_name_escaped = display_name.replace('"', '\\"')
+        short_desc_escaped = short_desc.replace('"', '\\"')
+
+        yaml_content = (
+            f'interface:\n'
+            f'  display_name: "{display_name_escaped}"\n'
+            f'  short_description: "{short_desc_escaped}"\n'
+            f'  default_prompt: "Use ${name} skill for this task."\n'
+        )
+
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        manifest.write_text(yaml_content, encoding="utf-8")
+        generated.append(name)
+
+    if not generated:
+        return True, "All skills already have Codex manifests"
+    return True, f"Generated openai.yaml for {len(generated)} skill(s): {', '.join(generated)}"
 

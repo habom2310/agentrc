@@ -87,6 +87,11 @@ class TestSandboxE2E(unittest.TestCase):
         self.assertTrue(ok_g)
         self.assertTrue(ok_x)
 
+        # Verify Codex skill manifests projected
+        mock_openai_yaml = hub / "skills" / "mock-claude-tool" / "agents" / "openai.yaml"
+        self.assertTrue(mock_openai_yaml.is_file())
+        self.assertIn("Mock Claude", mock_openai_yaml.read_text(encoding="utf-8"))
+
         # 4. Compiled Projections
         ok_pg, _ = project_gemini_rules()
         ok_pc, _ = project_claude_rules()
