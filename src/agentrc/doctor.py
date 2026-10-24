@@ -89,6 +89,8 @@ def run_doctor(fix: bool = False) -> dict:
             checks.append("Codex skills junction intact")
         elif codex_skills.exists():
             issues.append("~/.codex/skills is not linked to ~/.agentrc/skills")
+        else:
+            issues.append("~/.codex/skills does not exist")
 
     # Auto-repair if requested
     repairs = []

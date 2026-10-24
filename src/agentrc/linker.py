@@ -19,7 +19,7 @@ def create_junction(link_path: Path, target_path: Path) -> tuple[bool, str]:
     if sys.platform != "win32":
         # Unix symlink
         try:
-            if link_path.is_symlink() or link_path.exists():
+            if link_path.is_symlink() or os.path.lexists(link_path):
                 link_path.unlink()
             link_path.symlink_to(target_path, target_is_directory=True)
             return True, f"Symlink created: {link_path} -> {target_path}"
@@ -29,15 +29,27 @@ def create_junction(link_path: Path, target_path: Path) -> tuple[bool, str]:
     link_str = str(link_path)
     target_str = str(target_path)
 
-    # If link already exists, check if it points to target
-    if link_path.exists():
-        if link_path.is_symlink() or (link_path.resolve() == target_path.resolve()):
-            return True, f"Junction already intact: {link_str}"
-        # If it's a real directory, raise warning or migrate
-        return False, f"Destination {link_str} already exists and is not pointing to {target_str}"
+    # Check if link entry already exists on disk
+    if os.path.lexists(link_path):
+        try:
+            if link_path.resolve() == target_path.resolve():
+                return True, f"Junction already intact: {link_str}"
+        except Exception:
+            pass
 
-    # Use cmd.exe /c mklink /J
-    cmd = ["cmd.exe", "/c", "mklink", "/J", link_str, target_str]
+        # If it's a reparse point (junction or symlink) pointing to wrong/missing target, remove it
+        if link_path.is_symlink() or (hasattr(link_path, "is_junction") and link_path.is_junction()):
+            try:
+                os.rmdir(link_path)
+            except OSError:
+                link_path.unlink(missing_ok=True)
+        elif link_path.is_dir():
+            return False, f"Destination {link_str} already exists and is a directory not pointing to {target_str}"
+        else:
+            return False, f"Destination {link_str} already exists as a regular file"
+
+    # Use cmd.exe /c mklink /J with quoted paths
+    cmd = f'cmd.exe /c mklink /J "{link_str}" "{target_str}"'
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if proc.returncode == 0:

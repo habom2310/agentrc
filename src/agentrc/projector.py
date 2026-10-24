@@ -48,8 +48,12 @@ def project_gemini_rules() -> tuple[bool, str]:
     target1.parent.mkdir(parents=True, exist_ok=True)
     target1.write_text(content, encoding="utf-8")
 
-    if target2.parent.is_dir():
-        target2.write_text(content, encoding="utf-8")
+    # If target2 exists as a separate file, unlink to prevent duplicate rule ingestion in AGY
+    if target2.is_file() and target2.resolve() != target1.resolve():
+        try:
+            target2.unlink()
+        except OSError:
+            pass
 
     return True, f"Projected GEMINI.md ({len(content)} chars)"
 
@@ -175,7 +179,7 @@ def project_subagents() -> tuple[bool, list[str]]:
         (gemini_agents / f"{name}.md").write_text(agy_content, encoding="utf-8")
 
         # Project for Claude Code (inject tools & claude models)
-        claude_model = "claude-haiku-5-5" if (tier == "fast" or tier == "inherit") else "claude-sonnet-5-5"
+        claude_model = "haiku" if (tier == "fast" or tier == "inherit") else "sonnet"
         claude_tools = "Bash, Read, Edit, Write, Glob, Grep" if mode == "read-write" else "Bash, Read, Glob, Grep"
         claude_fm = [
             "---",

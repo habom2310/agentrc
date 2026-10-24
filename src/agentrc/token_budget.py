@@ -6,6 +6,7 @@ Monitors session boot footprint to guarantee ultra-lean startup context.
 from pathlib import Path
 import re
 from agentrc.detector import get_home_dir, get_hub_dir
+from agentrc.projector import parse_frontmatter
 
 ESTIMATED_CHARS_PER_TOKEN = 4.0
 TARGET_BUDGET = 2000
@@ -46,8 +47,12 @@ def audit_budget() -> dict:
                 if skill_md.is_file():
                     skill_count += 1
                     txt = skill_md.read_text(encoding="utf-8", errors="replace")
-                    # Extract name and description lines only
-                    if txt.startswith("---"):
+                    # Extract name and description using frontmatter parser to handle multiline
+                    meta, _ = parse_frontmatter(txt)
+                    name_desc = f"{meta.get('name', '')}: {meta.get('description', '')}".strip()
+                    if name_desc:
+                        skill_desc_chars += len(name_desc)
+                    elif txt.startswith("---"):
                         parts = txt.split("---", 2)
                         if len(parts) >= 3:
                             for line in parts[1].splitlines():

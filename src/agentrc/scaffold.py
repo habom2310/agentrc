@@ -93,10 +93,6 @@ def init_hub(template_dir: Path | None = None, force: bool = False) -> dict:
     # 3. Copy Templates if provided
     copied_templates = []
     if template_dir and template_dir.is_dir():
-        for root, dirs, files in template_dir.walk() if hasattr(template_dir, "walk") else list(template_dir.rglob("*")):
-            # standard rglob fallback
-            pass
-
         # Copy rules
         rules_src = template_dir / "rules"
         if rules_src.is_dir():
@@ -137,6 +133,7 @@ def init_hub(template_dir: Path | None = None, force: bool = False) -> dict:
         "platforms": {
             "claude": {"enabled": True},
             "antigravity": {"enabled": True},
+            "codex": {"enabled": True},
             "cursor": {"enabled": False},
         },
         "links": {

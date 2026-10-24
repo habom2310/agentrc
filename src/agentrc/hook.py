@@ -25,19 +25,39 @@ def run_session_start_hook() -> int:
         return 0
 
     try:
-        # Check if rules directory has changed newer than projected files
+        # Check source mtime across rules and agents
         rules_dir = hub / "rules"
+        agents_dir = hub / "agents"
+        sources = []
         if rules_dir.is_dir():
-            latest_rule_mtime = max(f.stat().st_mtime for f in rules_dir.rglob("*.md"))
-            gemini_md = get_home_dir() / ".gemini" / "GEMINI.md"
+            sources.extend(rules_dir.rglob("*.md"))
+        if agents_dir.is_dir():
+            sources.extend(agents_dir.glob("*.md"))
 
-            if gemini_md.is_file():
-                if latest_rule_mtime > gemini_md.stat().st_mtime:
-                    # Hub rules were updated, reproject deterministically
-                    project_gemini_rules()
-                    project_claude_rules()
-                    project_codex_rules()
-                    project_subagents()
+        if not sources:
+            return 0
+
+        latest_src_mtime = max(f.stat().st_mtime for f in sources)
+        home = get_home_dir()
+
+        # Check target projection files independently
+        targets = [
+            home / ".gemini" / "GEMINI.md",
+            home / ".claude" / "CLAUDE.md",
+            home / ".codex" / "AGENTS.md",
+        ]
+
+        needs_reproject = False
+        for t in targets:
+            if t.is_file() and latest_src_mtime > t.stat().st_mtime:
+                needs_reproject = True
+                break
+
+        if needs_reproject:
+            project_gemini_rules()
+            project_claude_rules()
+            project_codex_rules()
+            project_subagents()
     except Exception as e:
         # Never crash the host AI startup session
         print(f"[agentrc] sync notice: {e}", file=sys.stderr)
