@@ -76,5 +76,20 @@ class TestLinkerSkillMigration(unittest.TestCase):
         self.assertTrue((linked / "SKILL.md").is_file())
 
 
+    def test_dangling_hub_symlink_does_not_crash_migration(self):
+        claude_skills = self.home_dir / ".claude" / "skills"
+        claude_skills.mkdir(parents=True)
+        dup = claude_skills / "dup-skill"
+        dup.mkdir()
+        (dup / "SKILL.md").write_text("---\nname: dup-skill\n---\n", encoding="utf-8")
+
+        hub_skills = self.hub_dir / "skills"
+        hub_skills.mkdir(parents=True)
+        os.symlink(self.root / "missing-source", hub_skills / "dup-skill")
+
+        ok, _ = link_skills_for_claude()
+        self.assertTrue(ok)
+
+
 if __name__ == "__main__":
     unittest.main()

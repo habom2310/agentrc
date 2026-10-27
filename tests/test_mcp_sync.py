@@ -251,5 +251,25 @@ class TestMcpSync(unittest.TestCase):
         self.assertEqual(data, {})
 
 
+    def test_null_claude_entry_does_not_crash(self):
+        hub_mcp_file = self.hub_dir / "mcp" / "servers.json"
+        hub_mcp_file.write_text(json.dumps({
+            "mcpServers": {"codegraph": {"command": "codegraph"}}
+        }), encoding="utf-8")
+        (self.home_dir / ".claude.json").write_text(json.dumps({
+            "mcpServers": {"codegraph": None, "orphan": None}
+        }), encoding="utf-8")
+
+        status = get_mcp_status(self.home_dir, self.hub_dir)
+        self.assertIn("codegraph", status["drifted_in_claude"])
+        self.assertFalse(status["in_sync"])
+
+        ok, _ = sync_mcp_servers(self.home_dir, self.hub_dir)
+        self.assertTrue(ok)
+
+        claude_entry = json.loads((self.home_dir / ".claude.json").read_text(encoding="utf-8"))["mcpServers"]["codegraph"]
+        self.assertEqual(claude_entry, {"command": "codegraph", "type": "stdio"})
+
+
 if __name__ == "__main__":
     unittest.main()
