@@ -168,6 +168,9 @@ def connect_platform(platform_name: str, target_dir: Path | None = None) -> tupl
     Supported: cursor, windsurf, codex, claude, gemini / agy.
     """
     norm = platform_name.strip().lower()
+    if target_dir is not None and norm not in ("cursor", "windsurf", "codeium"):
+        return False, f"Custom --target-dir is not supported for '{platform_name}'. It is only supported for 'cursor' and 'windsurf'."
+
     if norm in ("cursor",):
         return connect_cursor(target_dir)
     elif norm in ("windsurf", "codeium"):

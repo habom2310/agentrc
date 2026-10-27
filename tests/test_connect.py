@@ -114,6 +114,10 @@ class TestConnect(unittest.TestCase):
         self.assertFalse(ok_bad)
         self.assertIn("Unsupported platform", msg_bad)
 
+        ok_reject, msg_reject = connect_platform("gemini", target_dir=Path("/tmp/custom"))
+        self.assertFalse(ok_reject)
+        self.assertIn("Custom --target-dir is not supported", msg_reject)
+
 
 if __name__ == "__main__":
     unittest.main()

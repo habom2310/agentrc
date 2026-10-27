@@ -7,6 +7,7 @@ from pathlib import Path
 from agentrc.detector import get_home_dir, get_hub_dir
 from agentrc.chunker import MarkdownChunk, parse_markdown_chunks, diff_chunks
 from agentrc.projector import (
+    HEADER_GUARD,
     PLATFORM_RULE_FILES,
     project_gemini_rules,
     project_claude_rules,
@@ -17,7 +18,7 @@ from agentrc.projector import (
 def _get_expected_rules_text(platform: str, rules_dir: Path) -> str:
     """Builds the expected projected markdown text for a platform from hub rules."""
     files = PLATFORM_RULE_FILES.get(platform, ["common.md", "code-tools.md", "handoffs.md"])
-    parts = []
+    parts = [HEADER_GUARD.strip()]
     for f in files:
         p = rules_dir / f
         if p.is_file():
