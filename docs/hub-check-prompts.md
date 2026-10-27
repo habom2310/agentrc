@@ -17,7 +17,7 @@ Verify my centralised agentrc hub setup. Do not modify any files. Report PASS/FA
 2. List the custom subagents you can delegate to. Expected: implementer (inherit), reviewer (pro), scout (flash) projected into ~/.gemini/config/agents/, plus agy's own research agent (not from the hub).
 3. List the skills you can load. Expected: handoff, ripwire-change-check, ripwire-find-bug, ripwire-quality-bar, ripwire-reuse-first, ripwire-write-tests, all served from ~/.agentrc/skills (see ~/.gemini/config/skills.json).
 4. Open the skill ripwire-find-bug and quote the first line of its description.
-5. Check MCP: is the codegraph server connected? Call its explore tool with query "project_subagents" and projectPath "~/Documents/agentrc"; say whether it returned source.
+5. Check MCP: is the codegraph server connected? Call its explore tool with query "project_subagents" and projectPath set to the absolute path of ~/Documents/agentrc. PASS if the tool replies at all; a "not indexed" reply still proves the server is connected.
 6. Delegate to the scout subagent: "Run `ls -la ~/.agentrc` and report the entries." Report whether the subagent started without a tool-registry error, and what it returned.
 ```
 
