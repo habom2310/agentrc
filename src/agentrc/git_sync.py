@@ -205,10 +205,11 @@ def git_push(
             now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             message = f"agentrc sync: {now_str}"
 
-        commit_res = _run_git(
-            ["-c", "user.name=agentrc", "-c", "user.email=agentrc@local", "commit", "-m", message],
-            cwd=hub_dir,
-        )
+        has_user = _run_git(["config", "user.name"], cwd=hub_dir).stdout.strip() != ""
+        commit_cmd = ["commit", "-m", message]
+        if not has_user:
+            commit_cmd = ["-c", "user.name=agentrc", "-c", "user.email=agentrc@local"] + commit_cmd
+        commit_res = _run_git(commit_cmd, cwd=hub_dir)
         if commit_res.returncode != 0:
             return False, f"git commit failed: {commit_res.stderr.strip()}"
 

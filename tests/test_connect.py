@@ -72,6 +72,11 @@ class TestConnect(unittest.TestCase):
         self.assertIn("Cursor rules projected from hub", doc["passed_checks"])
 
     def test_connect_windsurf(self):
+        # Verify initial manifest has windsurf disabled
+        initial_manifest = json.loads((self.hub_dir / "agentrc.json").read_text(encoding="utf-8"))
+        self.assertIn("windsurf", initial_manifest["platforms"])
+        self.assertFalse(initial_manifest["platforms"]["windsurf"]["enabled"])
+
         ok, msg = connect_windsurf()
         self.assertTrue(ok)
 
@@ -105,6 +110,12 @@ class TestConnect(unittest.TestCase):
         doc = run_doctor()
         self.assertIn("Windsurf skills junction intact", doc["passed_checks"])
         self.assertIn("Windsurf rules projected from hub", doc["passed_checks"])
+
+    def test_connect_windsurf_custom_target_dir(self):
+        custom_dir = self.home_dir / "custom_windsurf_folder"
+        ok, msg = connect_windsurf(target_dir=custom_dir)
+        self.assertTrue(ok)
+        self.assertTrue((custom_dir / "memories" / "global_rules.md").is_file())
 
     def test_connect_platform_dispatcher(self):
         ok, msg = connect_platform("cursor")

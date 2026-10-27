@@ -9,7 +9,7 @@ if str(src_path) not in sys.path:
     sys.path.insert(0, str(src_path))
 
 from agentrc.detector import set_custom_home
-from agentrc.mcp_sync import get_mcp_status, sync_mcp_servers
+from agentrc.mcp_sync import get_mcp_status, sync_mcp_servers, _read_json_safely
 
 
 class TestMcpSync(unittest.TestCase):
@@ -141,6 +141,28 @@ class TestMcpSync(unittest.TestCase):
         st = get_mcp_status(self.home_dir, self.hub_dir)
         self.assertFalse(st["in_sync"])
         self.assertIn("server1", st["drifted_in_claude"])
+
+    def test_uninstalled_platforms_not_marked_missing(self):
+        hub_mcp_file = self.hub_dir / "mcp" / "servers.json"
+        hub_mcp_file.write_text(json.dumps({
+            "mcpServers": {
+                "server1": {"command": "s1"}
+            }
+        }), encoding="utf-8")
+
+        # Empty home directory with no .claude or .gemini
+        empty_home = Path(self.temp_dir.name) / "empty_home"
+        empty_home.mkdir(parents=True, exist_ok=True)
+        st = get_mcp_status(home_dir=empty_home, hub_dir=self.hub_dir)
+        self.assertEqual(st["missing_in_claude"], [])
+        self.assertEqual(st["missing_in_gemini"], [])
+
+    def test_non_dict_json_safety(self):
+        array_file = self.home_dir / "array.json"
+        array_file.write_text("[1, 2, 3]", encoding="utf-8")
+        data, ok = _read_json_safely(array_file)
+        self.assertFalse(ok)
+        self.assertEqual(data, {})
 
 
 if __name__ == "__main__":

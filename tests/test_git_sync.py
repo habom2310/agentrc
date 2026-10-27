@@ -78,6 +78,22 @@ class TestGitSync(unittest.TestCase):
         self.assertEqual(st["modified"], [])
         self.assertEqual(st["untracked"], [])
 
+    def test_git_push_with_configured_user_name(self):
+        ok, msg = git_init_hub(self.hub_dir)
+        self.assertTrue(ok)
+
+        subprocess.run(["git", "config", "user.name", "Test Author"], cwd=self.hub_dir, check=True)
+        subprocess.run(["git", "config", "user.email", "author@example.com"], cwd=self.hub_dir, check=True)
+
+        rule_file = self.hub_dir / "rules" / "common.md"
+        rule_file.write_text("## Rule\nContent\n", encoding="utf-8")
+
+        ok, push_msg = git_push(self.hub_dir, message="Configured user commit")
+        self.assertTrue(ok)
+
+        res = subprocess.run(["git", "log", "-1", "--format=%an <%ae>"], cwd=self.hub_dir, capture_output=True, text=True, check=True)
+        self.assertEqual(res.stdout.strip(), "Test Author <author@example.com>")
+
     def test_git_status_unstaged_modification_path_integrity(self):
         ok, msg = git_init_hub(self.hub_dir)
         self.assertTrue(ok)

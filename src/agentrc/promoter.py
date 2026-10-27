@@ -12,6 +12,8 @@ from agentrc.projector import (
     project_gemini_rules,
     project_claude_rules,
     project_codex_rules,
+    project_cursor_rules,
+    project_windsurf_rules,
 )
 
 
@@ -61,7 +63,11 @@ def detect_rule_drift(home_dir: Path | None = None, hub_dir: Path | None = None)
 
         raw_downstream = target_file.read_text(encoding="utf-8")
 
-        if platform == "claude" and any(line.strip().startswith("@") for line in raw_downstream.splitlines()):
+        is_import_manifest = platform == "claude" and any(
+            line.strip().startswith("@") and ("rules/" in line or "common.md" in line)
+            for line in raw_downstream.splitlines()
+        )
+        if is_import_manifest:
             # Claude uses @import lines. Any unimported markdown lines appended downstream are drift.
             non_import_lines = [
                 line for line in raw_downstream.splitlines()
@@ -170,5 +176,7 @@ def promote_chunk(
         project_gemini_rules()
         project_claude_rules()
         project_codex_rules()
+        project_cursor_rules()
+        project_windsurf_rules()
 
     return True, f"Promoted rule '{chunk.header}' into {target_rule_file}"

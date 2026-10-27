@@ -11,7 +11,6 @@ from datetime import datetime, timezone
 from agentrc.detector import get_home_dir, get_hub_dir
 from agentrc.linker import create_junction, link_skills_for_claude, link_skills_for_gemini, link_skills_for_codex
 from agentrc.projector import (
-    HEADER_GUARD,
     project_gemini_rules,
     project_claude_rules,
     project_codex_rules,
@@ -19,22 +18,6 @@ from agentrc.projector import (
     project_windsurf_rules,
     project_subagents,
 )
-
-
-def _compile_rules_for_cursor(hub_dir: Path) -> str:
-    rules_dir = hub_dir / "rules"
-    parts = [HEADER_GUARD]
-
-    for fname in ["common.md", "code-tools.md", "handoffs.md"]:
-        fpath = rules_dir / fname
-        if fpath.is_file():
-            parts.append(fpath.read_text(encoding="utf-8").strip())
-
-    cursor_override = rules_dir / "overrides" / "cursor.md"
-    if cursor_override.is_file():
-        parts.append(cursor_override.read_text(encoding="utf-8").strip())
-
-    return "\n\n".join(parts) + "\n"
 
 
 def _update_hub_manifest(platform_name: str, info: dict, hub_dir: Path) -> None:

@@ -135,6 +135,7 @@ def init_hub(template_dir: Path | None = None, force: bool = False) -> dict:
             "antigravity": {"enabled": True},
             "codex": {"enabled": True},
             "cursor": {"enabled": False},
+            "windsurf": {"enabled": False},
         },
         "links": {
             "skills": str(hub / "skills"),

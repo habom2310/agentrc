@@ -8,7 +8,6 @@ from pathlib import Path
 import json
 import shutil
 import tempfile
-import sys
 from agentrc.detector import get_home_dir, get_hub_dir
 
 
@@ -22,9 +21,11 @@ def _read_json_safely(path: Path) -> tuple[dict, bool]:
     if not path.is_file():
         return {}, True
     try:
-        return json.loads(path.read_text(encoding="utf-8")), True
-    except Exception as e:
-        print(f"[agentrc] Error parsing {path.name}: {e}", file=sys.stderr)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return {}, False
+        return data, True
+    except Exception:
         return {}, False
 
 
@@ -94,8 +95,11 @@ def get_mcp_status(home_dir: Path | None = None, hub_dir: Path | None = None) ->
     gemini_servers = dict(gemini_settings_servers)
     gemini_servers.update(gemini_mcp_servers)
 
-    missing_in_claude = [s for s in hub_servers if s not in claude_servers]
-    missing_in_gemini = [s for s in hub_servers if s not in gemini_servers]
+    claude_installed = claude_file.is_file() or (home_dir / ".claude").is_dir()
+    gemini_installed = (home_dir / ".gemini").is_dir() or gemini_mcp_file.is_file() or gemini_settings_file.is_file()
+
+    missing_in_claude = [s for s in hub_servers if s not in claude_servers] if claude_installed else []
+    missing_in_gemini = [s for s in hub_servers if s not in gemini_servers] if gemini_installed else []
     untracked_in_claude = [s for s in claude_servers if s not in hub_servers]
     untracked_in_gemini = [s for s in gemini_servers if s not in hub_servers]
 
