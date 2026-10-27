@@ -66,7 +66,11 @@ def _migrate_skill_entry(item: Path, target_item: Path) -> None:
     to the same target so the skill keeps tracking its real source.
     """
     if item.is_symlink():
-        os.symlink(os.readlink(item), target_item)
+        link_text = os.readlink(item)
+        if not os.path.isabs(link_text):
+            # Relative targets are relative to the original link's directory, not the hub
+            link_text = os.path.normpath(os.path.join(str(item.parent), link_text))
+        os.symlink(link_text, target_item)
     elif item.is_dir():
         shutil.copytree(item, target_item)
     else:

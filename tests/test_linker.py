@@ -56,6 +56,25 @@ class TestLinkerSkillMigration(unittest.TestCase):
         self.assertTrue(copied.is_dir())
         self.assertTrue((copied / "SKILL.md").is_file())
 
+    def test_migrate_resolves_relative_skill_symlink_against_original_dir(self):
+        # Target "../rel-skill" is valid from ~/.claude/skills but not from ~/.agentrc/skills
+        source = self.home_dir / ".claude" / "rel-skill"
+        source.mkdir(parents=True)
+        (source / "SKILL.md").write_text("---\nname: rel-skill\n---\n", encoding="utf-8")
+
+        claude_skills = self.home_dir / ".claude" / "skills"
+        claude_skills.mkdir(parents=True)
+        os.symlink("../rel-skill", claude_skills / "rel-skill")
+
+        ok, _ = link_skills_for_claude()
+        self.assertTrue(ok)
+
+        linked = self.hub_dir / "skills" / "rel-skill"
+        self.assertTrue(linked.is_symlink())
+        self.assertTrue(os.path.isabs(os.readlink(linked)))
+        self.assertEqual(linked.resolve(), source.resolve())
+        self.assertTrue((linked / "SKILL.md").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()
