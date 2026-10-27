@@ -157,12 +157,118 @@ class TestMcpSync(unittest.TestCase):
         self.assertEqual(st["missing_in_claude"], [])
         self.assertEqual(st["missing_in_gemini"], [])
 
+    def test_always_load_preserved_on_claude_mirror(self):
+        hub_mcp_file = self.hub_dir / "mcp" / "servers.json"
+        hub_mcp_file.write_text(json.dumps({
+            "mcpServers": {
+                "codegraph": {"command": "codegraph", "args": ["serve", "--mcp"]}
+            }
+        }), encoding="utf-8")
+
+        claude_file = self.home_dir / ".claude.json"
+        claude_file.write_text(json.dumps({
+            "mcpServers": {
+                "codegraph": {
+                    "type": "stdio",
+                    "command": "codegraph",
+                    "args": ["serve", "--mcp"],
+                    "alwaysLoad": True,
+                }
+            }
+        }), encoding="utf-8")
+
+        ok, _ = sync_mcp_servers(self.home_dir, self.hub_dir)
+        self.assertTrue(ok)
+
+        claude_updated = json.loads(claude_file.read_text(encoding="utf-8"))
+        self.assertIs(claude_updated["mcpServers"]["codegraph"]["alwaysLoad"], True)
+
+        hub_updated = json.loads(hub_mcp_file.read_text(encoding="utf-8"))
+        self.assertNotIn("alwaysLoad", hub_updated["mcpServers"]["codegraph"])
+
+    def test_always_load_not_reported_as_drift(self):
+        hub_mcp_file = self.hub_dir / "mcp" / "servers.json"
+        hub_mcp_file.write_text(json.dumps({
+            "mcpServers": {
+                "codegraph": {"command": "codegraph", "args": ["serve", "--mcp"]}
+            }
+        }), encoding="utf-8")
+
+        claude_file = self.home_dir / ".claude.json"
+        claude_file.write_text(json.dumps({
+            "mcpServers": {
+                "codegraph": {
+                    "type": "stdio",
+                    "command": "codegraph",
+                    "args": ["serve", "--mcp"],
+                    "alwaysLoad": True,
+                }
+            }
+        }), encoding="utf-8")
+
+        ok, _ = sync_mcp_servers(self.home_dir, self.hub_dir)
+        self.assertTrue(ok)
+
+        status = get_mcp_status(self.home_dir, self.hub_dir)
+        self.assertTrue(status["in_sync"])
+        self.assertEqual(status["drifted_in_claude"], [])
+
+    def test_always_load_preserved_when_hub_args_change(self):
+        hub_mcp_file = self.hub_dir / "mcp" / "servers.json"
+        hub_mcp_file.write_text(json.dumps({
+            "mcpServers": {
+                "codegraph": {"command": "codegraph", "args": ["serve", "--mcp", "--new"]}
+            }
+        }), encoding="utf-8")
+
+        claude_file = self.home_dir / ".claude.json"
+        claude_file.write_text(json.dumps({
+            "mcpServers": {
+                "codegraph": {
+                    "type": "stdio",
+                    "command": "codegraph",
+                    "args": ["serve", "--mcp"],
+                    "alwaysLoad": True,
+                }
+            }
+        }), encoding="utf-8")
+
+        ok, _ = sync_mcp_servers(self.home_dir, self.hub_dir)
+        self.assertTrue(ok)
+
+        claude_entry = json.loads(claude_file.read_text(encoding="utf-8"))["mcpServers"]["codegraph"]
+        self.assertEqual(claude_entry["args"], ["serve", "--mcp", "--new"])
+        self.assertIs(claude_entry["alwaysLoad"], True)
+
+        hub_entry = json.loads(hub_mcp_file.read_text(encoding="utf-8"))["mcpServers"]["codegraph"]
+        self.assertNotIn("alwaysLoad", hub_entry)
+
     def test_non_dict_json_safety(self):
         array_file = self.home_dir / "array.json"
         array_file.write_text("[1, 2, 3]", encoding="utf-8")
         data, ok = _read_json_safely(array_file)
         self.assertFalse(ok)
         self.assertEqual(data, {})
+
+
+    def test_null_claude_entry_does_not_crash(self):
+        hub_mcp_file = self.hub_dir / "mcp" / "servers.json"
+        hub_mcp_file.write_text(json.dumps({
+            "mcpServers": {"codegraph": {"command": "codegraph"}}
+        }), encoding="utf-8")
+        (self.home_dir / ".claude.json").write_text(json.dumps({
+            "mcpServers": {"codegraph": None, "orphan": None}
+        }), encoding="utf-8")
+
+        status = get_mcp_status(self.home_dir, self.hub_dir)
+        self.assertIn("codegraph", status["drifted_in_claude"])
+        self.assertFalse(status["in_sync"])
+
+        ok, _ = sync_mcp_servers(self.home_dir, self.hub_dir)
+        self.assertTrue(ok)
+
+        claude_entry = json.loads((self.home_dir / ".claude.json").read_text(encoding="utf-8"))["mcpServers"]["codegraph"]
+        self.assertEqual(claude_entry, {"command": "codegraph", "type": "stdio"})
 
 
 if __name__ == "__main__":

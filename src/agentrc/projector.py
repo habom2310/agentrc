@@ -230,6 +230,29 @@ def parse_frontmatter(content: str) -> tuple[dict, str]:
     return meta, body
 
 
+def _claude_frontmatter(name: str, desc: str, meta: dict, tier: str, effort: str, mode: str) -> str:
+    claude_model = "haiku" if (tier == "fast" or tier == "inherit") else "sonnet"
+    claude_model = meta.get("claude_model") or claude_model
+    claude_tools = "Bash, Read, Edit, Write, Glob, Grep" if mode == "read-write" else "Bash, Read, Glob, Grep"
+    claude_tools = meta.get("claude_tools") or claude_tools
+    claude_fm = [
+        "---",
+        f"name: {name}",
+        f"description: {desc}",
+        f"model: {claude_model}",
+        f"effort: {effort}",
+    ]
+    if meta.get("permissionMode"):
+        claude_fm.append(f"permissionMode: {meta['permissionMode']}")
+    if meta.get("omitClaudeMd"):
+        claude_fm.append(f"omitClaudeMd: {meta['omitClaudeMd']}")
+    claude_fm.extend([
+        f"tools: {claude_tools}",
+        "---",
+    ])
+    return "\n".join(claude_fm)
+
+
 def project_subagents() -> tuple[bool, list[str]]:
     home = get_home_dir()
     hub = get_hub_dir()
@@ -288,18 +311,8 @@ def project_subagents() -> tuple[bool, list[str]]:
         (gemini_agents / f"{name}.md").write_text(agy_content, encoding="utf-8")
 
         # Project for Claude Code (inject tools & claude models)
-        claude_model = "haiku" if (tier == "fast" or tier == "inherit") else "sonnet"
-        claude_tools = "Bash, Read, Edit, Write, Glob, Grep" if mode == "read-write" else "Bash, Read, Glob, Grep"
-        claude_fm = [
-            "---",
-            f"name: {name}",
-            f"description: {desc}",
-            f"model: {claude_model}",
-            f"effort: {effort}",
-            f"tools: {claude_tools}",
-            "---",
-        ]
-        claude_content = "\n".join(claude_fm) + body
+        claude_fm = _claude_frontmatter(name, desc, meta, tier, effort, mode)
+        claude_content = claude_fm + body
         (claude_agents / f"{name}.md").write_text(claude_content, encoding="utf-8")
 
         results.append(f"Projected subagent: {name}")

@@ -60,6 +60,31 @@ def create_junction(link_path: Path, target_path: Path) -> tuple[bool, str]:
         return False, str(e)
 
 
+def _migrate_skill_entry(item: Path, target_item: Path) -> None:
+    """
+    Moves one existing skill entry into the hub. Symlinks are recreated as symlinks
+    to the same target so the skill keeps tracking its real source.
+    """
+    if item.is_symlink():
+        link_text = os.readlink(item)
+        if not os.path.isabs(link_text):
+            # Relative targets are relative to the original link's directory, not the hub
+            link_text = os.path.normpath(os.path.join(str(item.parent), link_text))
+        try:
+            os.symlink(link_text, target_item)
+        except OSError:
+            # e.g. Windows without symlink privilege: fall back to copying the resolved target
+            resolved = item.resolve()
+            if resolved.is_dir():
+                shutil.copytree(resolved, target_item)
+            else:
+                shutil.copy2(resolved, target_item)
+    elif item.is_dir():
+        shutil.copytree(item, target_item)
+    else:
+        shutil.copy2(item, target_item)
+
+
 def link_skills_for_claude() -> tuple[bool, str]:
     """
     Links ~/.claude/skills to ~/.agentrc/skills using an NTFS directory junction.
@@ -76,11 +101,8 @@ def link_skills_for_claude() -> tuple[bool, str]:
         # Migrate contents
         for item in claude_skills.iterdir():
             target_item = hub_skills / item.name
-            if not target_item.exists():
-                if item.is_dir():
-                    shutil.copytree(item, target_item)
-                else:
-                    shutil.copy2(item, target_item)
+            if not os.path.lexists(target_item):
+                _migrate_skill_entry(item, target_item)
         # Rename old directory to backup
         old_backup = claude_skills.parent / "skills.old"
         if old_backup.exists():
@@ -149,11 +171,8 @@ def link_skills_for_codex() -> tuple[bool, str]:
         # Migrate existing unique skills to hub
         for item in codex_skills.iterdir():
             target_item = hub_skills / item.name
-            if not target_item.exists():
-                if item.is_dir():
-                    shutil.copytree(item, target_item)
-                else:
-                    shutil.copy2(item, target_item)
+            if not os.path.lexists(target_item):
+                _migrate_skill_entry(item, target_item)
         # Backup old skills dir
         old_backup = codex_skills.parent / "skills.old"
         if old_backup.exists():

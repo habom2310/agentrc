@@ -104,9 +104,15 @@ def get_mcp_status(home_dir: Path | None = None, hub_dir: Path | None = None) ->
     untracked_in_gemini = [s for s in gemini_servers if s not in hub_servers]
 
     # Detect configuration drift for existing servers
+    # alwaysLoad is Claude-only and kept on the Claude side, so ignore it when comparing.
     drifted_in_claude = [
         s for s in hub_servers
-        if s in claude_servers and claude_servers[s] != adapt_server_for_claude(s, hub_servers[s])
+        if s in claude_servers
+        and (
+            not isinstance(claude_servers[s], dict)
+            or {k: v for k, v in claude_servers[s].items() if k != "alwaysLoad"}
+            != adapt_server_for_claude(s, hub_servers[s])
+        )
     ]
     drifted_in_gemini = [
         s for s in hub_servers
@@ -188,7 +194,7 @@ def sync_mcp_servers(home_dir: Path | None = None, hub_dir: Path | None = None) 
     # 1. Ingest from Claude into hub
     if claude_ok:
         for name, cfg in claude_servers.items():
-            if name not in hub_servers:
+            if name not in hub_servers and isinstance(cfg, dict):
                 hub_servers[name] = normalize_server_for_hub(name, cfg)
                 actions.append(f"Ingested '{name}' from Claude Code into hub")
 
@@ -214,6 +220,12 @@ def sync_mcp_servers(home_dir: Path | None = None, hub_dir: Path | None = None) 
             changed_claude = False
             for name, cfg in hub_servers.items():
                 adapted = adapt_server_for_claude(name, cfg)
+                existing = updated_claude_servers.get(name, {})
+                if not isinstance(existing, dict):
+                    existing = {}
+                if "alwaysLoad" in existing:
+                    # alwaysLoad is stripped from the hub copy, so keep Claude's value.
+                    adapted["alwaysLoad"] = existing["alwaysLoad"]
                 if updated_claude_servers.get(name) != adapted:
                     updated_claude_servers[name] = adapted
                     changed_claude = True
