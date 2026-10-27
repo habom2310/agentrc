@@ -175,6 +175,10 @@ def run_doctor(fix: bool = False) -> dict:
             drift_details.append(f"untracked in Claude: {', '.join(mcp_st['untracked_in_claude'])}")
         if mcp_st["untracked_in_gemini"]:
             drift_details.append(f"untracked in Antigravity: {', '.join(mcp_st['untracked_in_gemini'])}")
+        if mcp_st["drifted_in_claude"]:
+            drift_details.append(f"drifted in Claude: {', '.join(mcp_st['drifted_in_claude'])}")
+        if mcp_st["drifted_in_gemini"]:
+            drift_details.append(f"drifted in Antigravity: {', '.join(mcp_st['drifted_in_gemini'])}")
         issues.append(f"MCP servers out of sync ({'; '.join(drift_details)})")
     else:
         server_count = len(mcp_st["hub"]["servers"])
