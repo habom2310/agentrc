@@ -19,14 +19,17 @@ flowchart TD
     subgraph Targets ["Active AI Platforms"]
         Claude["Claude Code\n(~/.claude)"]
         AGY["Antigravity / Gemini\n(~/.gemini)"]
+        Codex["OpenAI Codex & ChatGPT\n(~/.codex/AGENTS.md)"]
         Cursor["Cursor / Windsurf"]
         Copilot["Copilot CLI"]
     end
 
     S -->|NTFS Directory Junction| Claude
     S -->|skills.json Resolved Path| AGY
+    S -->|NTFS Directory Junction| Codex
     R -->|Live @import / Compiled Projection| Claude
     R -->|Compiled Projection + Header Guard| AGY
+    R -->|Compiled Projection AGENTS.md| Codex
     A -->|Adapted Schema Projection| Claude
     A -->|Adapted Schema Projection| AGY
     H -->|Non-blocking SessionStart| Claude
@@ -53,7 +56,8 @@ flowchart TD
 │   ├── handoffs.md          # Session continuity & handoff lifecycle rules
 │   └── overrides/           # Host-specific platform bridges
 │       ├── claude.md        # Claude Code bridge (offload to agy, copilot review)
-│       └── agy.md           # Antigravity native capabilities
+│       ├── agy.md           # Antigravity native capabilities
+│       └── codex.md         # OpenAI Codex & ChatGPT overrides
 ├── skills/                  # Shared executable skills (SKILL.md + Python scripts)
 │   ├── handoff/
 │   ├── ripwire-*/
@@ -64,6 +68,8 @@ flowchart TD
 │   └── scout.md
 ├── mcp/
 │   └── servers.json         # Single source MCP registry
+├── export/                  # Consolidated prompt export for ChatGPT Web/Desktop
+│   └── chatgpt_custom_instructions.md
 └── backups/                 # Pre-migration whitelist snapshots
 ```
 

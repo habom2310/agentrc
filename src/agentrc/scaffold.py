@@ -28,6 +28,8 @@ def backup_existing_configs(backup_dir: Path) -> list[str]:
         home / ".gemini" / "config" / "hooks.json",
         home / ".claude" / "CLAUDE.md",
         home / ".claude" / "settings.json",
+        home / ".codex" / "AGENTS.md",
+        home / ".codex" / "config.toml",
     ]
 
     for t in targets:
@@ -63,24 +65,34 @@ def init_hub(template_dir: Path | None = None, force: bool = False) -> dict:
     backed_up_files = backup_existing_configs(backup_path)
 
     # 2. Create Directory Scaffold
+    bin_dir = hub / "bin"
     subdirs = [
         hub / "rules" / "overrides",
         hub / "skills",
         hub / "agents",
         hub / "mcp",
         hub / "backups",
-        hub / "bin",
+        bin_dir,
     ]
     for d in subdirs:
         d.mkdir(parents=True, exist_ok=True)
 
+    # Populate bin with runner and package
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    for item in ["agentrc.py", "agentrc.bat"]:
+        src_f = repo_root / item
+        if src_f.is_file():
+            shutil.copy2(src_f, bin_dir / item)
+    src_pkg = repo_root / "src" / "agentrc"
+    if src_pkg.is_dir():
+        dest_pkg = bin_dir / "agentrc"
+        if dest_pkg.exists():
+            shutil.rmtree(dest_pkg, ignore_errors=True)
+        shutil.copytree(src_pkg, dest_pkg)
+
     # 3. Copy Templates if provided
     copied_templates = []
     if template_dir and template_dir.is_dir():
-        for root, dirs, files in template_dir.walk() if hasattr(template_dir, "walk") else list(template_dir.rglob("*")):
-            # standard rglob fallback
-            pass
-
         # Copy rules
         rules_src = template_dir / "rules"
         if rules_src.is_dir():
@@ -121,7 +133,9 @@ def init_hub(template_dir: Path | None = None, force: bool = False) -> dict:
         "platforms": {
             "claude": {"enabled": True},
             "antigravity": {"enabled": True},
+            "codex": {"enabled": True},
             "cursor": {"enabled": False},
+            "windsurf": {"enabled": False},
         },
         "links": {
             "skills": str(hub / "skills"),
@@ -129,6 +143,13 @@ def init_hub(template_dir: Path | None = None, force: bool = False) -> dict:
     }
     if not manifest_file.exists() or force:
         manifest_file.write_text(json.dumps(manifest_data, indent=2), encoding="utf-8")
+
+    # 5. Initial MCP sync across platforms
+    try:
+        from agentrc.mcp_sync import sync_mcp_servers
+        sync_mcp_servers()
+    except Exception:
+        pass
 
     return {
         "hub_dir": str(hub),

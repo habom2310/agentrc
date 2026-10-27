@@ -25,6 +25,23 @@ Body of agent.
         self.assertEqual(meta.get("effort"), "medium")
         self.assertIn("Body of agent.", body)
 
+    def test_parse_frontmatter_multiline(self):
+        sample = """---
+name: multi-agent
+description: >
+  Line one of description.
+  Line two of description.
+tier: fast
+---
+
+Agent prompt body.
+"""
+        meta, body = parse_frontmatter(sample)
+        self.assertEqual(meta.get("name"), "multi-agent")
+        self.assertEqual(meta.get("description"), "Line one of description. Line two of description.")
+        self.assertEqual(meta.get("tier"), "fast")
+        self.assertIn("Agent prompt body.", body)
+
 
 if __name__ == "__main__":
     unittest.main()

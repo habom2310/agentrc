@@ -22,6 +22,7 @@ class TestDetector(unittest.TestCase):
         self.assertIn("platforms", res)
         self.assertIn("antigravity", res["platforms"])
         self.assertIn("claude", res["platforms"])
+        self.assertIn("codex", res["platforms"])
 
 
 if __name__ == "__main__":

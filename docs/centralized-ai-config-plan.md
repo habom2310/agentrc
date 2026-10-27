@@ -115,6 +115,19 @@ To balance **zero-maintenance live sharing** with **host-specific schema constra
 * **Cursor**: Symlink/Junction user-level `.cursorrules` or export to project root.
 * **Copilot**: Global instructions or `.github/copilot-instructions.md` referencing `rules/common.md`.
 
+### D. OpenAI Codex & ChatGPT
+* **Rules / Instructions (`AGENTS.md`)**:
+  - OpenAI Codex CLI (`codex-cli`) and ChatGPT Projects use `AGENTS.md` as their native instruction standard.
+  - `agentrc` projects global instructions into `~/.codex/AGENTS.md` by combining:
+    `rules/common.md` + `rules/code-tools.md` + `rules/handoffs.md` + `rules/overrides/codex.md`
+  - For ChatGPT Web / Desktop: `agentrc export chatgpt` produces a consolidated single prompt block ready to paste into ChatGPT Global Custom Instructions or ChatGPT Project instructions.
+* **Skills (Direct Sharing)**:
+  - NTFS Junction or symlink from `~/.agentrc/skills/` into `~/.codex/skills/`, making skills immediately discoverable by Codex CLI.
+* **Subagents & Tool Collaboration**:
+  - Codex uses built-in multi-turn tool calling and computer-use plugins. Universal subagent definitions in `~/.agentrc/agents/` are mapped to Codex runtime personas.
+* **Platform Overrides (`rules/overrides/codex.md`)**:
+  - Encapsulates Codex-specific nuances (e.g. attributing PR comments to Codex rather than Claude, avoiding RTK output wrapping, and handling computer-use permissions).
+
 ---
 
 ## 4. The Migration Wizard: Handling Existing Settings

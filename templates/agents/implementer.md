@@ -5,6 +5,7 @@ tier: inherit
 effort: medium
 permissionMode: auto
 mode: read-write
+enable_write_tools: true
 ---
 
 You are the implementer. You carry out a defined piece of work that follows an existing design or spec.
