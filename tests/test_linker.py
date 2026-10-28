@@ -48,7 +48,7 @@ class TestLinkerSkillMigration(unittest.TestCase):
 
         linked = hub_skills / "ripwire-find-bug"
         self.assertTrue(linked.is_symlink())
-        self.assertEqual(os.readlink(linked), str(source))
+        self.assertEqual(os.readlink(linked).removeprefix('\\\\?\\'), str(source))
         self.assertEqual(linked.resolve(), source.resolve())
 
         copied = hub_skills / "my-skill"
