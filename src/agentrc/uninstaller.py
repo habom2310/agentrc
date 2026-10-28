@@ -1,0 +1,301 @@
+"""
+Uninstaller for agentrc.
+Rolls back projected configurations to pre-agentrc backups, unlinks skill junctions,
+cleans up generated rules and subagents, and optionally purges the ~/.agentrc hub.
+"""
+
+from pathlib import Path
+import os
+import shutil
+from agentrc.detector import get_home_dir, get_hub_dir
+
+
+def find_earliest_backup(hub_dir: Path) -> Path | None:
+    """
+    Scans hub_dir / 'backups' for directories starting with 'pre-agentrc-',
+    sorts them alphabetically, and returns the earliest (or None).
+    """
+    backups_dir = hub_dir / "backups"
+    if not backups_dir.is_dir():
+        return None
+
+    matching = [
+        d for d in backups_dir.iterdir()
+        if d.is_dir() and d.name.startswith("pre-agentrc-")
+    ]
+    if not matching:
+        return None
+
+    matching.sort(key=lambda d: d.name)
+    return matching[0]
+
+
+def restore_from_backup(backup_dir: Path, home_dir: Path, dry_run: bool = False) -> list[str]:
+    """
+    Recursively walks backup_dir and restores files into home_dir.
+    Guards against path traversal: dest = (home_dir / rel).resolve().
+    If not str(dest).startswith(str(home_dir.resolve()) + os.sep) -> raise ValueError.
+    For each regular file (without following directory symlinks):
+      If not dry_run, creates parent directories and copies file.
+    Returns list of restored posix relative paths.
+    """
+    if not backup_dir.is_dir():
+        return []
+
+    home_resolved = home_dir.resolve()
+    home_resolved_str = str(home_resolved)
+    prefix = home_resolved_str if home_resolved_str.endswith(os.sep) else home_resolved_str + os.sep
+
+    restored = []
+
+    for root, dirs, files in os.walk(backup_dir, followlinks=False):
+        for fname in sorted(files):
+            entry = Path(root) / fname
+            is_junc = hasattr(entry, "is_junction") and entry.is_junction()
+            if entry.is_file() and not entry.is_symlink() and not is_junc:
+                rel = entry.relative_to(backup_dir)
+                dest = (home_dir / rel).resolve()
+                if not str(dest).startswith(prefix):
+                    raise ValueError(f"Path traversal detected: {rel}")
+
+                rel_posix = rel.as_posix()
+                restored.append(rel_posix)
+                if not dry_run:
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(entry, dest)
+
+    return restored
+
+
+def _is_junction_or_symlink(path: Path) -> bool:
+    if hasattr(path, "is_junction") and path.is_junction():
+        return True
+    if path.is_symlink():
+        return True
+    if os.path.islink(path):
+        return True
+    return False
+
+
+def _remove_junction_or_symlink(link_path: Path):
+    if hasattr(link_path, "is_junction") and link_path.is_junction():
+        try:
+            os.rmdir(link_path)
+        except OSError:
+            link_path.unlink()
+    elif link_path.is_symlink():
+        link_path.unlink()
+    else:
+        try:
+            os.rmdir(link_path)
+        except OSError:
+            link_path.unlink()
+
+
+def cleanup_junctions(home_dir: Path, hub_dir: Path, dry_run: bool = False) -> dict:
+    """
+    Inspects .claude/skills, .codex/skills, .cursor/skills, .codeium/windsurf/skills, .windsurf/skills.
+    For junctions/symlinks pointing to hub_dir / 'skills':
+      If not dry_run, removes junction.
+      Records in unlinked.
+      If skills.old exists in parent directory:
+        If not dry_run: renames skills.old -> skills.
+        Records in restored.
+    Returns {"unlinked": unlinked, "restored": restored}.
+    """
+    candidate_skill_paths = [
+        home_dir / ".claude" / "skills",
+        home_dir / ".codex" / "skills",
+        home_dir / ".cursor" / "skills",
+        home_dir / ".codeium" / "windsurf" / "skills",
+        home_dir / ".windsurf" / "skills",
+    ]
+
+    target_skills = (hub_dir / "skills").resolve()
+    unlinked = []
+    restored = []
+
+    for p in candidate_skill_paths:
+        if not os.path.lexists(p):
+            continue
+        if not _is_junction_or_symlink(p):
+            continue
+
+        try:
+            if p.resolve() != target_skills:
+                continue
+        except Exception:
+            continue
+
+        rel_posix = p.relative_to(home_dir).as_posix()
+        if not dry_run:
+            _remove_junction_or_symlink(p)
+        unlinked.append(rel_posix)
+
+        old_skills = p.parent / "skills.old"
+        if old_skills.exists():
+            if not dry_run:
+                try:
+                    old_skills.rename(p)
+                except Exception:
+                    shutil.move(str(old_skills), str(p))
+            restored.append(rel_posix)
+
+    return {"unlinked": unlinked, "restored": restored}
+
+
+def cleanup_generated_rules(
+    home_dir: Path,
+    hub_dir: Path,
+    restored_files: set[str],
+    dry_run: bool = False,
+) -> list[str]:
+    """
+    Checks for generated rules:
+      - .cursor/rules/agentrc.mdc
+      - .cursorrules (if contains 'agentrc' or 'autogenerated by agentrc')
+      - .windsurfrules (if contains 'agentrc' or 'autogenerated by agentrc')
+      - .windsurf/memories/global_rules.md (if contains 'agentrc' or 'autogenerated by agentrc')
+      - .codeium/windsurf/memories/global_rules.md (if contains 'agentrc' or 'autogenerated by agentrc')
+      - .gemini/GEMINI.md and .gemini/config/GEMINI.md (if contains 'agentrc' or 'autogenerated by agentrc')
+      - .claude/CLAUDE.md (if contains '.agentrc' or 'agentrc' or 'autogenerated by agentrc')
+      - .codex/AGENTS.md (if contains 'agentrc' or 'autogenerated by agentrc')
+    If not in restored_files, deletes if not dry_run.
+    Restores .gemini/config/GEMINI.md.backup or .gemini/GEMINI.md.backup back to GEMINI.md if found.
+    Checks .claude/agents/*.md and .gemini/config/agents/*.md:
+      Reads hub_dir / 'agents' to discover projected agent files, plus scout.md, implementer.md, reviewer.md.
+      If not in restored_files and contains agentrc, removes if not dry_run.
+    Returns list of removed paths.
+    """
+    candidate_rules = [
+        home_dir / ".cursor" / "rules" / "agentrc.mdc",
+        home_dir / ".cursorrules",
+        home_dir / ".windsurfrules",
+        home_dir / ".windsurf" / "memories" / "global_rules.md",
+        home_dir / ".codeium" / "windsurf" / "memories" / "global_rules.md",
+        home_dir / ".gemini" / "GEMINI.md",
+        home_dir / ".gemini" / "config" / "GEMINI.md",
+        home_dir / ".claude" / "CLAUDE.md",
+        home_dir / ".codex" / "AGENTS.md",
+    ]
+
+    removed = []
+
+    for candidate in candidate_rules:
+        if not candidate.is_file():
+            continue
+        rel_posix = candidate.relative_to(home_dir).as_posix()
+        if rel_posix in restored_files or str(candidate.relative_to(home_dir)) in restored_files:
+            continue
+
+        is_agentrc = False
+        if candidate.name == "agentrc.mdc":
+            is_agentrc = True
+        else:
+            try:
+                txt = candidate.read_text(encoding="utf-8", errors="ignore").lower()
+                if "agentrc" in txt or "autogenerated by agentrc" in txt or ".agentrc" in txt:
+                    is_agentrc = True
+            except Exception:
+                pass
+
+        if is_agentrc:
+            if not dry_run:
+                candidate.unlink()
+            removed.append(rel_posix)
+
+    # Restore GEMINI.md.backup back to GEMINI.md if found
+    for gemini_target in [home_dir / ".gemini" / "config" / "GEMINI.md", home_dir / ".gemini" / "GEMINI.md"]:
+        backup_file = gemini_target.with_name(gemini_target.name + ".backup")
+        if backup_file.is_file():
+            rel_posix = gemini_target.relative_to(home_dir).as_posix()
+            if rel_posix not in restored_files and str(gemini_target.relative_to(home_dir)) not in restored_files:
+                if not dry_run:
+                    if gemini_target.exists():
+                        gemini_target.unlink()
+                    try:
+                        backup_file.rename(gemini_target)
+                    except Exception:
+                        shutil.move(str(backup_file), str(gemini_target))
+
+    # Clean up projected subagents
+    agent_names = {"scout.md", "implementer.md", "reviewer.md"}
+    hub_agents = hub_dir / "agents"
+    if hub_agents.is_dir():
+        for f in hub_agents.glob("*.md"):
+            agent_names.add(f.name)
+
+    for ag_dir in [home_dir / ".claude" / "agents", home_dir / ".gemini" / "config" / "agents"]:
+        if not ag_dir.is_dir():
+            continue
+        for fname in sorted(agent_names):
+            ag_path = ag_dir / fname
+            if not ag_path.is_file():
+                continue
+            rel_posix = ag_path.relative_to(home_dir).as_posix()
+            if rel_posix in restored_files or str(ag_path.relative_to(home_dir)) in restored_files:
+                continue
+            try:
+                txt = ag_path.read_text(encoding="utf-8", errors="ignore").lower()
+                if "agentrc" in txt:
+                    if not dry_run:
+                        ag_path.unlink()
+                    removed.append(rel_posix)
+            except Exception:
+                pass
+
+    return removed
+
+
+def uninstall_hub(
+    home: Path | None = None,
+    hub: Path | None = None,
+    dry_run: bool = False,
+    purge: bool = False,
+) -> dict:
+    """
+    Orchestrates agentrc uninstallation:
+    - Resolves home and hub dirs using get_home_dir() and get_hub_dir().
+    - Finds earliest backup, restores it.
+    - Cleans up junctions.
+    - Cleans up generated rules and subagents.
+    - If purge:
+        Sanity check: ensure hub.resolve() != home.resolve() and hub.resolve() != Path(hub.resolve().anchor).
+        If not dry_run, removes hub directory.
+    - Returns summary dictionary.
+    """
+    home_dir = home if home is not None else get_home_dir()
+    hub_dir = hub if hub is not None else get_hub_dir()
+
+    earliest_backup = find_earliest_backup(hub_dir)
+    restored_files = []
+    if earliest_backup:
+        restored_files = restore_from_backup(earliest_backup, home_dir, dry_run=dry_run)
+
+    restored_set = set(restored_files)
+    junction_results = cleanup_junctions(home_dir, hub_dir, dry_run=dry_run)
+    removed_rules = cleanup_generated_rules(home_dir, hub_dir, restored_set, dry_run=dry_run)
+
+    purged = False
+    if purge:
+        resolved_hub = hub_dir.resolve()
+        resolved_home = home_dir.resolve()
+        if resolved_hub == resolved_home:
+            raise ValueError(f"Cannot purge hub directory identical to home: {resolved_hub}")
+        if resolved_hub == Path(resolved_hub.anchor):
+            raise ValueError(f"Cannot purge root directory: {resolved_hub}")
+        if not dry_run:
+            if hub_dir.exists():
+                shutil.rmtree(hub_dir, ignore_errors=True)
+        purged = True
+
+    return {
+        "home": str(home_dir),
+        "hub": str(hub_dir),
+        "backup_used": str(earliest_backup) if earliest_backup else None,
+        "restored_files": restored_files,
+        "junctions": junction_results,
+        "removed_rules": removed_rules,
+        "purged": purged,
+        "dry_run": dry_run,
+    }
