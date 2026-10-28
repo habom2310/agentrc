@@ -125,6 +125,12 @@ def main():
     export_parser.add_argument("-o", "--output", default=None, help="Output file path (default: ~/.agentrc/export/<target>_custom_instructions.md)")
     export_parser.add_argument("--stdout", action="store_true", help="Print prompt block directly to stdout")
 
+    # uninstall
+    uninstall_parser = subparsers.add_parser("uninstall", help="Roll back projected configurations, unlink junctions, and optionally remove hub")
+    uninstall_parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
+    uninstall_parser.add_argument("--purge", action="store_true", help="Purge ~/.agentrc hub directory without prompting")
+    uninstall_parser.add_argument("--dry-run", action="store_true", help="Preview rollback changes without modifying filesystem")
+
     args = parser.parse_args()
 
     if args.home:
@@ -434,6 +440,64 @@ def main():
             print("\nPreview (first 10 lines):")
             for line in content.splitlines()[:10]:
                 print(f"  {line}")
+
+    elif args.command == "uninstall":
+        from agentrc.uninstaller import uninstall_hub
+        from agentrc.detector import get_hub_dir
+
+        is_interactive = sys.stdin.isatty()
+        purge = args.purge
+
+        if not args.dry_run and not args.yes:
+            if is_interactive:
+                confirm = input("Are you sure you want to uninstall agentrc and restore configurations? [y/N]: ").strip().lower()
+                if confirm not in ("y", "yes"):
+                    print("Uninstall cancelled.")
+                    sys.exit(0)
+                if not purge:
+                    hub_p = get_hub_dir()
+                    del_hub = input(f"Do you also want to completely delete the hub directory ({hub_p})? [y/N]: ").strip().lower()
+                    if del_hub in ("y", "yes"):
+                        purge = True
+            else:
+                print("Non-interactive mode requires --yes (-y) to confirm uninstall.")
+                sys.exit(1)
+
+        res = uninstall_hub(dry_run=args.dry_run, purge=purge)
+
+        mode_str = " [DRY RUN]" if res["dry_run"] else ""
+        print(f"=== agentrc Uninstall{mode_str} ===")
+        print(f"Hub Path:  {res['hub']}")
+        print(f"Home Path: {res['home']}")
+        if res.get("backup_used"):
+            print(f"Backup restored from: {res['backup_used']}")
+        else:
+            print("Backup restored: None found")
+
+        print(f"\nRestored configurations ({len(res['restored_files'])}):")
+        for f in res["restored_files"]:
+            print(f"  + {f}")
+
+        unlinked = res["junctions"].get("unlinked", [])
+        print(f"\nUnlinked junctions ({len(unlinked)}):")
+        for j in unlinked:
+            print(f"  - {j}")
+
+        restored_skills = res["junctions"].get("restored", [])
+        print(f"\nRestored skill folders ({len(restored_skills)}):")
+        for s in restored_skills:
+            print(f"  + {s}")
+
+        removed_rules = res.get("removed_rules", [])
+        print(f"\nRemoved generated rules/subagents ({len(removed_rules)}):")
+        for r in removed_rules:
+            print(f"  - {r}")
+
+        if res.get("purged"):
+            status_purge = "Purged" if not res["dry_run"] else "Would purge"
+            print(f"\nHub Directory: {status_purge} ({res['hub']})")
+        else:
+            print(f"\nHub Directory: Preserved ({res['hub']})")
 
 
 if __name__ == "__main__":
